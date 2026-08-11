@@ -3,7 +3,7 @@ import { usernameToAuthEmail } from "@/lib/supabase/auth";
 
 describe("username login", () => {
   it("converts a username into an internal Supabase email", () => {
-    expect(usernameToAuthEmail(" EarthCake ")).toBe("earthcake@report-tor.local");
+    expect(usernameToAuthEmail(" EarthCake ")).toBe("earthcake@gmail.com");
   });
 
   it("keeps a full email for existing Supabase users", () => {

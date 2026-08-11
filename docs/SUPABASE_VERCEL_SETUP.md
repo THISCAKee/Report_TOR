@@ -4,7 +4,7 @@
 
 1. สร้างโปรเจกต์ใหม่ที่ Supabase (แผน Free ใช้ได้กับระบบผู้ใช้คนเดียว)
 2. ไปที่ **SQL Editor** แล้วรันไฟล์ [`supabase/migrations/0001_daily_workload.sql`](../supabase/migrations/0001_daily_workload.sql)
-3. ไปที่ **Authentication > Users > Add user** สร้างผู้ใช้ โดยใช้อีเมลภายในรูปแบบ `ชื่อผู้ใช้@report-tor.local` เช่น `earthcake@report-tor.local` และกำหนดรหัสผ่าน
+3. ไปที่ **Authentication > Users > Add user** สร้างผู้ใช้ โดยใช้อีเมลรูปแบบ `ชื่อผู้ใช้@gmail.com` เช่น `earthcake@gmail.com` และกำหนดรหัสผ่าน
 4. ไปที่ **Project Settings > API** คัดลอก Project URL และ Publishable key (ถ้าโปรเจกต์ใช้ชื่อเดิม ให้ใช้ anon key)
 
 ## 2. ตั้งค่าบนเครื่อง
@@ -25,7 +25,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-key
 3. เพิ่ม Environment Variables ชื่อเดียวกับ `.env.local` ใน Production, Preview และ Development
 4. Deploy แล้วเปิด URL ของ Vercel เพื่อ Login
 
-หน้า Login ให้กรอกเฉพาะชื่อผู้ใช้ เช่น `earthcake` ระบบจะเติม `@report-tor.local` ให้อัตโนมัติ ไม่มีหน้า Sign up ในระบบ ผู้ดูแลสร้างหรือเปลี่ยนผู้ใช้จาก Supabase Dashboard เท่านั้น
+หน้า Login ให้กรอกเฉพาะชื่อผู้ใช้ เช่น `earthcake` ระบบจะเติม `@gmail.com` ให้อัตโนมัติ ไม่มีหน้า Sign up ในระบบ ผู้ดูแลสร้างหรือเปลี่ยนผู้ใช้จาก Supabase Dashboard เท่านั้น
 
 ## หมายเหตุเรื่องไฟล์แนบ
 
