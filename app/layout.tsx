@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+// @ts-expect-error The CSS module is processed by Next.js at build time.
 import "./globals.css";
 
 export const metadata: Metadata = {
