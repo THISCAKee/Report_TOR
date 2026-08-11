@@ -1,0 +1,52 @@
+@import url("https://fonts.googleapis.com/css2?family=Anuphan:wght@100..700&display=swap");
+@import "tailwindcss";
+
+:root {
+  --paper: #f5f3ee;
+  --paper-deep: #ebe8df;
+  --ink: #17233f;
+  --muted: #6d7586;
+  --line: #dce0e7;
+  --blue: #2f56d3;
+  --gold: #d7a83e;
+  --green: #2e8b72;
+  --red: #c54b4b;
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--paper); }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 84% 8%, rgba(215, 168, 62, .11), transparent 21rem),
+    var(--paper);
+  color: var(--ink);
+  font-family: "Anuphan", sans-serif;
+}
+
+button, input, select, textarea { font: inherit; }
+
+button { cursor: pointer; }
+
+::selection { background: rgba(47, 86, 211, .18); }
+
+.focus-ring:focus-visible,
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(47, 86, 211, .3);
+  outline-offset: 2px;
+}
+
+.paper-grid {
+  background-image: linear-gradient(rgba(23, 35, 63, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(23, 35, 63, .035) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
