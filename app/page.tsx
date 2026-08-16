@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DailyLog } from "@/components/DailyLog";
+import { DailyHistory } from "@/components/DailyHistory";
 import { EntryForm } from "@/components/EntryForm";
 import { SummaryStrip } from "@/components/SummaryStrip";
+import { WorkloadStats } from "@/components/WorkloadStats";
 import { WorkloadList } from "@/components/WorkloadList";
 import { getTodayIso, formatThaiDate } from "@/lib/format";
 import { getStoredLogs } from "@/lib/storage";
 import type { WorkLog, WorkLogDraft } from "@/lib/types";
+import { countWorkloadOccurrences, filterLogsByScope, summarizeLogsByDate } from "@/lib/work-log-insights";
 import { WORKLOADS } from "@/lib/workload-data";
 import { buildWordDocument, ensureWordImageDimensions } from "@/lib/word-export";
 import { createClient } from "@/lib/supabase/client";
@@ -29,6 +32,8 @@ export default function Home() {
 
   const dailyLogs = useMemo(() => logs.filter((log) => log.date === selectedDate), [logs, selectedDate]);
   const monthlyLogs = useMemo(() => logs.filter((log) => log.date.startsWith(selectedDate.slice(0, 7))), [logs, selectedDate]);
+  const dailySummaries = useMemo(() => summarizeLogsByDate(logs), [logs]);
+  const workloadStats = useMemo(() => countWorkloadOccurrences(logs, WORKLOADS), [logs]);
   const fileCount = dailyLogs.reduce((count, log) => count + log.attachments.length, 0);
 
   const handleSave = async (draft: WorkLogDraft) => {
@@ -55,14 +60,15 @@ export default function Home() {
     setIsEntryOpen(true);
   };
 
-  const handleExportWord = async () => {
-    const preparedLogs = await ensureWordImageDimensions(monthlyLogs);
+  const handleExportWord = async (scope: "day" | "month") => {
+    const exportLogs = filterLogsByScope(logs, selectedDate, scope);
+    const preparedLogs = await ensureWordImageDimensions(exportLogs);
     const documentHtml = buildWordDocument(selectedDate, preparedLogs, WORKLOADS);
     const blob = new Blob(["\ufeff", documentHtml], { type: "application/msword" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `บันทึกประจำวัน-${selectedDate.slice(0, 7)}.doc`;
+    link.download = scope === "day" ? `บันทึกประจำวัน-${selectedDate}.doc` : `บันทึกประจำเดือน-${selectedDate.slice(0, 7)}.doc`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -94,7 +100,9 @@ export default function Home() {
 
       <WorkloadList selectedId={editingLog?.workloadId ?? selectedWorkloadId} logs={logs} onSelect={handleSelectWorkload} />
 
-      <section className="mt-6 rounded-3xl border border-[var(--line)] bg-white/45 p-5 sm:p-6"><div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#eef1f8] px-4 py-3"><div><span className="text-xs font-semibold text-[var(--muted)]">กำลังดูบันทึกของ</span><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p></div><div className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 text-sm font-semibold" htmlFor="view-date"><span className="sr-only">เปลี่ยนวันที่ดู</span><input id="view-date" type="date" value={selectedDate} onChange={(event) => { setSelectedDate(event.target.value); setEditingLog(undefined); }} className="focus-ring rounded-lg border border-[#cdd4e3] bg-white px-3 py-2 text-sm" /></label><button type="button" onClick={handleExportWord} disabled={!monthlyLogs.length} className="focus-ring rounded-lg bg-[var(--ink)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#293a61] disabled:cursor-not-allowed disabled:opacity-40">ส่งออก Word รายเดือน</button></div></div><DailyLog date={selectedDate} logs={dailyLogs} onEdit={handleEdit} onDelete={handleDelete} /></section>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_.85fr]"><DailyHistory summaries={dailySummaries} selectedDate={selectedDate} onSelectDate={(date) => { setSelectedDate(date); setEditingLog(undefined); }} /><WorkloadStats stats={workloadStats} /></div>
+
+      <section className="mt-6 rounded-3xl border border-[var(--line)] bg-white/45 p-5 sm:p-6"><div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#eef1f8] px-4 py-3"><div><span className="text-xs font-semibold text-[var(--muted)]">กำลังดูบันทึกของ</span><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p></div><div className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 text-sm font-semibold" htmlFor="view-date"><span className="sr-only">เปลี่ยนวันที่ดู</span><input id="view-date" type="date" value={selectedDate} onChange={(event) => { setSelectedDate(event.target.value); setEditingLog(undefined); }} className="focus-ring rounded-lg border border-[#cdd4e3] bg-white px-3 py-2 text-sm" /></label><button type="button" onClick={() => void handleExportWord("day")} disabled={!dailyLogs.length} className="focus-ring rounded-lg border border-[var(--ink)] px-3 py-2 text-xs font-semibold text-[var(--ink)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">ส่งออก Word รายวัน</button><button type="button" onClick={() => void handleExportWord("month")} disabled={!monthlyLogs.length} className="focus-ring rounded-lg bg-[var(--ink)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#293a61] disabled:cursor-not-allowed disabled:opacity-40">ส่งออก Word รายเดือน</button></div></div><DailyLog date={selectedDate} logs={dailyLogs} onEdit={handleEdit} onDelete={handleDelete} /></section>
 
       {isEntryOpen ? <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(23,35,63,.42)] p-0 backdrop-blur-[2px] sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIsEntryOpen(false); setEditingLog(undefined); } }}><div role="dialog" aria-modal="true" aria-labelledby="entry-dialog-title" className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-[var(--paper)] p-5 shadow-2xl sm:rounded-3xl sm:p-7"><div className="mb-4 flex justify-end"><button type="button" onClick={() => { setIsEntryOpen(false); setEditingLog(undefined); }} className="focus-ring rounded-xl px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[#e9e8e2]">ปิดหน้าต่าง</button></div><div id="entry-dialog-title" className="sr-only">กรอกข้อมูลภาระงาน</div><EntryForm selectedDate={selectedDate} selectedWorkloadId={selectedWorkloadId} initialLog={editingLog} onSave={handleSave} onCancel={() => { setIsEntryOpen(false); setEditingLog(undefined); }} /></div></div> : null}
     </div>
