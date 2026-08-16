@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { countWorkloadOccurrences, filterLogsByScope, summarizeLogsByDate } from "@/lib/work-log-insights";
+import { buildWorkloadStatisticsExcel } from "@/lib/excel-export";
+import { countWorkloadOccurrences, filterLogsByScope, summarizeMonthlyWorkloadOccurrences, summarizeLogsByDate } from "@/lib/work-log-insights";
 import type { WorkLog, WorkloadDefinition } from "@/lib/types";
 
 const workloads: WorkloadDefinition[] = [
@@ -43,9 +44,25 @@ describe("work log insights", () => {
     expect(filterLogsByScope(logs, "2026-08-15", "month").map((item) => item.id)).toEqual(["1", "2", "3"]);
   });
 
+  it("summarizes workload occurrences for the selected month only", () => {
+    expect(summarizeMonthlyWorkloadOccurrences(logs, "2026-08-15", workloads)).toEqual([
+      { workloadId: "a", code: "A", title: "งานเอกสาร", count: 2 },
+      { workloadId: "b", code: "B", title: "งานบริการ", count: 1 },
+    ]);
+  });
+
   it("returns empty insights for empty logs", () => {
     expect(summarizeLogsByDate([])).toEqual([]);
     expect(countWorkloadOccurrences([], workloads)).toEqual([]);
     expect(filterLogsByScope([], "2026-08-15", "month")).toEqual([]);
+  });
+
+  it("builds an Excel-compatible statistics workbook with numeric counts", () => {
+    const workbook = buildWorkloadStatisticsExcel("2026-08", [
+      { workloadId: "a", code: "A", title: "งาน <เอกสาร>", count: 2 },
+    ]);
+    expect(workbook).toContain("สถิติการทำงาน เดือน 2026-08");
+    expect(workbook).toContain("งาน &lt;เอกสาร&gt;");
+    expect(workbook).toContain('ss:Type="Number">2');
   });
 });

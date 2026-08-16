@@ -42,3 +42,7 @@ export function filterLogsByScope(logs: WorkLog[], selectedDate: string, scope: 
   const month = selectedDate.slice(0, 7);
   return logs.filter((log) => scope === "day" ? log.date === selectedDate : log.date.startsWith(month));
 }
+
+export function summarizeMonthlyWorkloadOccurrences(logs: WorkLog[], selectedDate: string, workloads: WorkloadDefinition[]): WorkloadOccurrence[] {
+  return countWorkloadOccurrences(filterLogsByScope(logs, selectedDate, "month"), workloads);
+}
