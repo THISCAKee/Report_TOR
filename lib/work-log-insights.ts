@@ -44,5 +44,9 @@ export function filterLogsByScope(logs: WorkLog[], selectedDate: string, scope: 
 }
 
 export function summarizeMonthlyWorkloadOccurrences(logs: WorkLog[], selectedDate: string, workloads: WorkloadDefinition[]): WorkloadOccurrence[] {
-  return countWorkloadOccurrences(filterLogsByScope(logs, selectedDate, "month"), workloads);
+  return summarizeWorkloadOccurrencesForMonth(logs, selectedDate.slice(0, 7), workloads);
+}
+
+export function summarizeWorkloadOccurrencesForMonth(logs: WorkLog[], month: string, workloads: WorkloadDefinition[]): WorkloadOccurrence[] {
+  return countWorkloadOccurrences(logs.filter((log) => log.date.startsWith(month)), workloads);
 }

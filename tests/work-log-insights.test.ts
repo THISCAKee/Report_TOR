@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildWorkloadStatisticsExcel } from "@/lib/excel-export";
-import { countWorkloadOccurrences, filterLogsByScope, summarizeMonthlyWorkloadOccurrences, summarizeLogsByDate } from "@/lib/work-log-insights";
+import { countWorkloadOccurrences, filterLogsByScope, summarizeMonthlyWorkloadOccurrences, summarizeWorkloadOccurrencesForMonth, summarizeLogsByDate } from "@/lib/work-log-insights";
 import type { WorkLog, WorkloadDefinition } from "@/lib/types";
 
 const workloads: WorkloadDefinition[] = [
@@ -47,6 +47,12 @@ describe("work log insights", () => {
   it("summarizes workload occurrences for the selected month only", () => {
     expect(summarizeMonthlyWorkloadOccurrences(logs, "2026-08-15", workloads)).toEqual([
       { workloadId: "a", code: "A", title: "งานเอกสาร", count: 2 },
+      { workloadId: "b", code: "B", title: "งานบริการ", count: 1 },
+    ]);
+  });
+
+  it("uses an explicitly selected month for statistics", () => {
+    expect(summarizeWorkloadOccurrencesForMonth(logs, "2026-07", workloads)).toEqual([
       { workloadId: "b", code: "B", title: "งานบริการ", count: 1 },
     ]);
   });
