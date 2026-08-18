@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildImageWordDocument } from "@/lib/word-export";
+import { buildMonthlyWorkloadWordDocument } from "@/lib/word-export";
 import type { WorkLog, WorkloadDefinition } from "@/lib/types";
 
 const workloads: WorkloadDefinition[] = [
@@ -20,17 +20,33 @@ const imageLog = (id: string, date: string, workloadId: string, imageName: strin
   updatedAt: `${date}T0${id}:00:00.000Z`,
 });
 
-describe("image Word export", () => {
-  it("renders numbered workload headings with images in log order", () => {
-    const document = buildImageWordDocument("2026-08-15", [imageLog("2", "2026-08-15", "b", "second.png"), imageLog("1", "2026-08-15", "a", "first.png")], workloads);
-    expect(document.indexOf("หัวข้อที่ 1 A งานเอกสาร")).toBeLessThan(document.indexOf("หัวข้อที่ 2 B งานบริการ"));
-    expect(document.indexOf("first.png")).toBeLessThan(document.indexOf("second.png"));
+describe("monthly workload Word export", () => {
+  it("shows the selected workload total and each occurrence in chronological order", () => {
+    const laterLog = { ...imageLog("2", "2026-08-20", "a", "later.png"), detail: "งานครั้งหลัง" };
+    const earlierLog = { ...imageLog("1", "2026-08-03", "a", "earlier.png"), detail: "งานครั้งแรก" };
+
+    const document = buildMonthlyWorkloadWordDocument("2026-08-01", [laterLog, earlierLog], workloads[0]);
+
+    expect(document).toContain("รายงานประจำเดือน สิงหาคม พ.ศ. 2569");
+    expect(document).toContain("A งานเอกสาร");
+    expect(document).toContain("เดือนนี้ดำเนินการแล้ว 2 ครั้ง");
+    expect(document.indexOf("ครั้งที่ 1")).toBeLessThan(document.indexOf("ครั้งที่ 2"));
+    expect(document.indexOf("งานครั้งแรก")).toBeLessThan(document.indexOf("งานครั้งหลัง"));
+    expect(document.indexOf("earlier.png")).toBeLessThan(document.indexOf("later.png"));
     expect(document.match(/<img /g)).toHaveLength(2);
   });
 
-  it("omits logs without image attachments", () => {
-    const document = buildImageWordDocument("2026-08-15", [{ ...imageLog("1", "2026-08-15", "a", "file.pdf"), attachments: [{ id: "file", name: "file.pdf", size: 10, type: "application/pdf", dataUrl: "" }] }], workloads);
-    expect(document).toContain("ไม่มีรูปภาพแนบในรายการนี้");
+  it("counts entries without images and omits non-image attachments", () => {
+    const log = {
+      ...imageLog("1", "2026-08-03", "a", "file.pdf"),
+      attachments: [{ id: "file", name: "file.pdf", size: 10, type: "application/pdf", dataUrl: "data:application/pdf;base64,abc" }],
+    };
+
+    const document = buildMonthlyWorkloadWordDocument("2026-08-01", [log], workloads[0]);
+
+    expect(document).toContain("เดือนนี้ดำเนินการแล้ว 1 ครั้ง");
+    expect(document).toContain("ไม่มีรูปภาพแนบ");
+    expect(document).not.toContain("file.pdf");
     expect(document).not.toContain("<img ");
   });
 });

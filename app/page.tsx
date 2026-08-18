@@ -13,14 +13,13 @@ import type { WorkLog, WorkLogDraft } from "@/lib/types";
 import { buildWorkloadStatisticsExcel } from "@/lib/excel-export";
 import { countWorkloadOccurrences, summarizeLogsByDate, summarizeWorkloadOccurrencesForMonth } from "@/lib/work-log-insights";
 import { WORKLOADS } from "@/lib/workload-data";
-import { buildImageWordDocument, buildWordDocument, ensureWordImageDimensions } from "@/lib/word-export";
+import { buildMonthlyWorkloadWordDocument, buildWordDocument, ensureWordImageDimensions } from "@/lib/word-export";
 import { createClient } from "@/lib/supabase/client";
 import { deleteWorkLog, fetchWorkLogs, saveWorkLog } from "@/lib/supabase/work-logs";
 
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState(getTodayIso);
   const [selectedMonth, setSelectedMonth] = useState(() => getTodayIso().slice(0, 7));
-  const [imageExportScope, setImageExportScope] = useState<"day" | "month">("day");
   const [logs, setLogs] = useState<WorkLog[]>([]);
   const [editingLog, setEditingLog] = useState<WorkLog>();
   const [selectedWorkloadId, setSelectedWorkloadId] = useState("");
@@ -38,8 +37,6 @@ export default function Home() {
   const dailySummaries = useMemo(() => summarizeLogsByDate(logs), [logs]);
   const workloadStats = useMemo(() => countWorkloadOccurrences(logs, WORKLOADS), [logs]);
   const monthlyStats = useMemo(() => summarizeWorkloadOccurrencesForMonth(logs, selectedMonth, WORKLOADS), [logs, selectedMonth]);
-  const imageExportLogs = useMemo(() => imageExportScope === "day" ? dailyLogs : monthlyLogs, [dailyLogs, monthlyLogs, imageExportScope]);
-  const hasExportImages = useMemo(() => imageExportLogs.some((log) => log.attachments.some((file) => file.type.startsWith("image/"))), [imageExportLogs]);
   const fileCount = dailyLogs.reduce((count, log) => count + log.attachments.length, 0);
 
   const handleSave = async (draft: WorkLogDraft) => {
@@ -90,15 +87,17 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
-  const handleExportImageWord = async () => {
-    const preparedLogs = await ensureWordImageDimensions(imageExportLogs);
-    const exportDate = imageExportScope === "day" ? selectedDate : `${selectedMonth}-01`;
-    const documentHtml = buildImageWordDocument(exportDate, preparedLogs, WORKLOADS);
+  const handleExportMonthlyWorkload = async (workloadId: string) => {
+    const workload = WORKLOADS.find((item) => item.id === workloadId);
+    const workloadLogs = monthlyLogs.filter((log) => log.workloadId === workloadId);
+    if (!workload || !workloadLogs.length) return;
+    const preparedLogs = await ensureWordImageDimensions(workloadLogs);
+    const documentHtml = buildMonthlyWorkloadWordDocument(`${selectedMonth}-01`, preparedLogs, workload);
     const blob = new Blob(["\ufeff", documentHtml], { type: "application/msword" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `รูปภาพประกอบ-${imageExportScope === "day" ? selectedDate : selectedMonth}.doc`;
+    link.download = `รายงาน-${workload.code}-${selectedMonth}.doc`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -123,18 +122,18 @@ export default function Home() {
         <div className="flex items-center gap-2 self-start rounded-full border border-[#dce0e7] bg-white/70 px-3 py-2 text-xs text-[var(--muted)] sm:self-auto"><span className="size-2 rounded-full bg-[var(--green)]" />ข้อมูลเก็บบนระบบ <button type="button" onClick={() => void supabase.auth.signOut().then(() => window.location.assign("/login"))} className="ml-2 font-semibold text-[var(--blue)]">ออกจากระบบ</button></div>
       </header>
 
-      <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#d8def1] bg-[#f4f6ff] px-4 py-3.5"><div><p className="text-xs font-semibold text-[var(--muted)]">ช่วงเวลาที่กำลังดู</p><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p></div><div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm font-semibold" htmlFor="view-date"><span className="text-xs font-normal text-[var(--muted)]">วันที่ดู</span><input id="view-date" type="date" value={selectedDate} onChange={(event) => { setSelectedDate(event.target.value); setSelectedMonth(event.target.value.slice(0, 7)); setEditingLog(undefined); }} className="focus-ring rounded-lg border border-[#cdd4e3] bg-white px-3 py-2 text-sm" /></label><label className="flex items-center gap-2 text-sm font-semibold" htmlFor="export-month"><span className="text-xs font-normal text-[var(--muted)]">เดือนส่งออกสถิติ</span><input id="export-month" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} className="focus-ring rounded-lg border border-[#cdd4e3] bg-white px-3 py-2 text-sm" /></label></div></section>
+      <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#d8def1] bg-[#f4f6ff] px-4 py-3.5"><div><p className="text-xs font-semibold text-[var(--muted)]">ช่วงเวลาที่กำลังดู</p><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p></div><div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm font-semibold" htmlFor="view-date"><span className="text-xs font-normal text-[var(--muted)]">วันที่ดู</span><input id="view-date" type="date" value={selectedDate} onChange={(event) => { setSelectedDate(event.target.value); setSelectedMonth(event.target.value.slice(0, 7)); setEditingLog(undefined); }} className="focus-ring rounded-lg border border-[#cdd4e3] bg-white px-3 py-2 text-sm" /></label><label className="flex items-center gap-2 text-sm font-semibold" htmlFor="export-month"><span className="text-xs font-normal text-[var(--muted)]">เดือนสำหรับดาวน์โหลด</span><input id="export-month" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} className="focus-ring rounded-lg border border-[#cdd4e3] bg-white px-3 py-2 text-sm" /></label></div></section>
 
       <div className="mt-6"><SummaryStrip date={selectedDate} logCount={dailyLogs.length} fileCount={fileCount} /></div>
       {notice ? <div role="status" className="mt-4 rounded-xl border border-[#b9dfd2] bg-[#effaf6] px-4 py-3 text-sm font-semibold text-[#246c59]">✓ {notice}</div> : null}
       {error ? <div role="alert" className="mt-4 rounded-xl border border-[#f2caca] bg-[#fff1f1] px-4 py-3 text-sm text-[var(--red)]">{error}</div> : null}
       {legacyCount ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#ead7a1] bg-[#fff9e9] px-4 py-3 text-sm"><span>พบข้อมูลเดิมในเครื่อง {legacyCount} รายการ</span><button type="button" onClick={() => void handleLegacyImport()} className="rounded-lg bg-[var(--gold)] px-3 py-2 text-xs font-bold text-[#4a3511]">นำเข้าเข้าระบบ</button></div> : null}
 
-      <WorkloadList selectedId={editingLog?.workloadId ?? selectedWorkloadId} logs={logs} onSelect={handleSelectWorkload} />
+      <WorkloadList selectedId={editingLog?.workloadId ?? selectedWorkloadId} selectedMonth={selectedMonth} logs={logs} onSelect={handleSelectWorkload} onExportMonthly={(workloadId) => void handleExportMonthlyWorkload(workloadId)} />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_.85fr]"><DailyHistory summaries={dailySummaries} selectedDate={selectedDate} onSelectDate={(date) => { setSelectedDate(date); setSelectedMonth(date.slice(0, 7)); setEditingLog(undefined); }} /><WorkloadStats stats={workloadStats} /></div>
 
-      <section className="mt-6 rounded-3xl border border-[var(--line)] bg-white/45 p-5 sm:p-6"><div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#eef1f8] px-4 py-3"><div><span className="text-xs font-semibold text-[var(--muted)]">กำลังดูบันทึกของ</span><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p></div><div className="flex flex-wrap items-center gap-2"><button type="button" onClick={handleExportStatistics} disabled={!monthlyStats.length} className="focus-ring rounded-lg border border-[var(--ink)] px-3 py-2 text-xs font-semibold text-[var(--ink)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">ส่งออกสถิติ Excel</button><select aria-label="ช่วงเวลาส่งออกรูปภาพ" value={imageExportScope} onChange={(event) => setImageExportScope(event.target.value as "day" | "month")} className="focus-ring rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-xs font-semibold"><option value="day">รูปภาพรายวัน</option><option value="month">รูปภาพรายเดือน</option></select><button type="button" onClick={() => void handleExportImageWord()} disabled={!hasExportImages} className="focus-ring rounded-lg bg-[var(--blue)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#2548b5] disabled:cursor-not-allowed disabled:opacity-40">ส่งออก Word รูปภาพ</button><button type="button" onClick={() => void handleExportWord("month")} disabled={!monthlyLogs.length} className="focus-ring rounded-lg bg-[var(--ink)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#293a61] disabled:cursor-not-allowed disabled:opacity-40">ส่งออก Word รายเดือน</button></div></div><DailyLog date={selectedDate} logs={dailyLogs} onEdit={handleEdit} onDelete={handleDelete} /></section>
+      <section className="mt-6 rounded-3xl border border-[var(--line)] bg-white/45 p-5 sm:p-6"><div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#eef1f8] px-4 py-3"><div><span className="text-xs font-semibold text-[var(--muted)]">กำลังดูบันทึกของ</span><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p></div><div className="flex flex-wrap items-center gap-2"><button type="button" onClick={handleExportStatistics} disabled={!monthlyStats.length} className="focus-ring rounded-lg border border-[var(--ink)] px-3 py-2 text-xs font-semibold text-[var(--ink)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">ส่งออกสถิติ Excel</button><button type="button" onClick={() => void handleExportWord("month")} disabled={!monthlyLogs.length} className="focus-ring rounded-lg bg-[var(--ink)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#293a61] disabled:cursor-not-allowed disabled:opacity-40">ส่งออก Word รายเดือน</button></div></div><DailyLog date={selectedDate} logs={dailyLogs} onEdit={handleEdit} onDelete={handleDelete} /></section>
 
       {isEntryOpen ? <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(23,35,63,.42)] p-0 backdrop-blur-[2px] sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIsEntryOpen(false); setEditingLog(undefined); } }}><div role="dialog" aria-modal="true" aria-labelledby="entry-dialog-title" className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-[var(--paper)] p-5 shadow-2xl sm:rounded-3xl sm:p-7"><div className="mb-4 flex justify-end"><button type="button" onClick={() => { setIsEntryOpen(false); setEditingLog(undefined); }} className="focus-ring rounded-xl px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[#e9e8e2]">ปิดหน้าต่าง</button></div><div id="entry-dialog-title" className="sr-only">กรอกข้อมูลภาระงาน</div><EntryForm selectedDate={selectedDate} selectedWorkloadId={selectedWorkloadId} initialLog={editingLog} onSave={handleSave} onCancel={() => { setIsEntryOpen(false); setEditingLog(undefined); }} /></div></div> : null}
     </div>
