@@ -25,6 +25,19 @@ export async function saveWorkLog(client: SupabaseClient, draft: WorkLogDraft, e
   const result = existing ? await client.from("work_logs").update(payload).eq("id", existing.id).select().single() : await client.from("work_logs").insert(payload).select().single();
   if (result.error || !result.data) throw result.error ?? new Error("บันทึกข้อมูลไม่สำเร็จ");
   const logId = result.data.id as string;
+  const retainedAttachmentIds = new Set(draft.attachments.map(file => file.id));
+  const removedAttachmentIds = existing?.attachments.filter(file => !retainedAttachmentIds.has(file.id)).map(file => file.id) ?? [];
+  if (removedAttachmentIds.length) {
+    const removedFiles = await client.from("work_log_files").select("id, storage_path").eq("work_log_id", logId).in("id", removedAttachmentIds);
+    if (removedFiles.error) throw removedFiles.error;
+    const paths = (removedFiles.data ?? []).map(file => file.storage_path);
+    if (paths.length) {
+      const removal = await client.storage.from("work-evidence").remove(paths);
+      if (removal.error) throw removal.error;
+    }
+    const deletion = await client.from("work_log_files").delete().in("id", removedAttachmentIds);
+    if (deletion.error) throw deletion.error;
+  }
   for (const file of draft.files ?? []) {
     const path = `${user.id}/${logId}/${crypto.randomUUID()}-${file.name}`;
     const upload = await client.storage.from("work-evidence").upload(path, file, { upsert: false });
