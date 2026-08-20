@@ -28,6 +28,6 @@ export function isImageAttachment(type: string): boolean {
   return type.startsWith("image/");
 }
 
-export function removeAttachmentGroup(attachments: Attachment[], target: Attachment): Attachment[] {
-  return attachments.filter(file => file.name !== target.name || file.size !== target.size);
+export function removeAttachment(attachments: Attachment[], target: Attachment): Attachment[] {
+  return attachments.filter(file => file.id !== target.id);
 }

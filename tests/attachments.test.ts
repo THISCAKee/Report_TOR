@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { removeAttachmentGroup } from "@/lib/format";
+import { removeAttachment } from "@/lib/format";
 import type { Attachment } from "@/lib/types";
 
 const file = (id: string, name: string, size: number): Attachment => ({
@@ -10,12 +10,12 @@ const file = (id: string, name: string, size: number): Attachment => ({
   dataUrl: `data:image/jpeg;base64,${id}`,
 });
 
-describe("removeAttachmentGroup", () => {
-  it("removes every duplicate attachment with the same name and size", () => {
+describe("removeAttachment", () => {
+  it("removes only the selected attachment when duplicates share name and size", () => {
     const first = file("first", "IMG_7905.jpeg", 4100000);
     const duplicate = file("duplicate", "IMG_7905.jpeg", 4100000);
     const different = file("different", "IMG_7905.jpeg", 819400);
 
-    expect(removeAttachmentGroup([first, duplicate, different], first)).toEqual([different]);
+    expect(removeAttachment([first, duplicate, different], first)).toEqual([duplicate, different]);
   });
 });
