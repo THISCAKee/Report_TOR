@@ -1,3 +1,5 @@
+import type { Attachment } from "@/lib/types";
+
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -24,4 +26,8 @@ export function formatNote(note: string): string {
 
 export function isImageAttachment(type: string): boolean {
   return type.startsWith("image/");
+}
+
+export function removeAttachmentGroup(attachments: Attachment[], target: Attachment): Attachment[] {
+  return attachments.filter(file => file.name !== target.name || file.size !== target.size);
 }
