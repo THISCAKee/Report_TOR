@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { selectDroppedImages } from "@/lib/attachment-drop";
 import { formatFileSize, getTodayIso, isImageAttachment, removeAttachment } from "@/lib/format";
 import type { Attachment, WorkLog, WorkLogDraft } from "@/lib/types";
 import { getWorkload } from "@/lib/workload-data";
@@ -42,7 +43,9 @@ export function EntryForm({ selectedDate, selectedWorkloadId, initialLog, onSave
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [error, setError] = useState("");
   const [reading, setReading] = useState(false);
+  const [isDraggingImages, setIsDraggingImages] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragDepthRef = useRef(0);
   const selectedWorkload = getWorkload(workloadId);
 
   useEffect(() => {
@@ -55,9 +58,11 @@ export function EntryForm({ selectedDate, selectedWorkloadId, initialLog, onSave
     setAttachments(initialLog?.attachments ?? []);
     setPendingFiles([]);
     setError("");
+    setIsDraggingImages(false);
+    dragDepthRef.current = 0;
   }, [initialLog, selectedDate, selectedWorkloadId]);
 
-  const handleFiles = async (files: FileList | null) => {
+  const handleFiles = async (files: FileList | File[] | null) => {
     if (!files?.length) return;
     const picked = Array.from(files);
     if (attachments.reduce((sum, file) => sum + file.size, 0) + picked.reduce((sum, file) => sum + file.size, 0) > MAX_BYTES) {
@@ -76,6 +81,37 @@ export function EntryForm({ selectedDate, selectedWorkloadId, initialLog, onSave
       setReading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const handleDragEnter = (event: React.DragEvent<HTMLLabelElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDraggingImages(true);
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLLabelElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleDragLeave = (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDraggingImages(false);
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDraggingImages(false);
+    const images = selectDroppedImages(event.dataTransfer.files);
+    if (!images.length) {
+      setError("กรุณาลากวางเฉพาะไฟล์รูปภาพ");
+      return;
+    }
+    void handleFiles(images);
   };
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -131,10 +167,17 @@ export function EntryForm({ selectedDate, selectedWorkloadId, initialLog, onSave
           <label className="block text-sm font-semibold" htmlFor="attachments">ไฟล์งานแนบ</label>
           <span className="text-xs text-[var(--muted)]">รวมไม่เกิน 10 MB</span>
         </div>
-        <label htmlFor="attachments" className="focus-ring flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#b9c2d5] bg-[#fafbfe] px-4 py-4 text-center transition hover:border-[var(--blue)] hover:bg-[#f4f6ff]">
+        <label
+          htmlFor="attachments"
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`focus-ring flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-4 text-center transition ${isDraggingImages ? "border-[var(--blue)] bg-[#e9edff] ring-2 ring-[var(--blue)]/20" : "border-[#b9c2d5] bg-[#fafbfe] hover:border-[var(--blue)] hover:bg-[#f4f6ff]"}`}
+        >
           <span className="text-xl text-[var(--blue)]">＋</span>
-          <span className="mt-1 text-sm font-semibold text-[var(--ink)]">คลิกเพื่อเลือกไฟล์หลายรายการ</span>
-          <span className="mt-0.5 text-xs text-[var(--muted)]">รองรับทุกนามสกุลไฟล์</span>
+          <span className="mt-1 text-sm font-semibold text-[var(--ink)]">{isDraggingImages ? "วางรูปภาพที่นี่" : "คลิกเพื่อเลือกไฟล์ หรือลากรูปภาพมาวาง"}</span>
+          <span className="mt-0.5 text-xs text-[var(--muted)]">การลากวางรองรับรูปภาพหลายรูป · การเลือกไฟล์รองรับทุกนามสกุล</span>
           <input ref={fileInputRef} id="attachments" type="file" multiple onChange={(event) => void handleFiles(event.target.files)} className="sr-only" />
         </label>
         {reading ? <p className="mt-2 text-sm text-[var(--blue)]">กำลังเตรียมไฟล์แนบ…</p> : null}
