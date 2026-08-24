@@ -29,4 +29,4 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-key
 
 ## หมายเหตุเรื่องไฟล์แนบ
 
-ไฟล์เก็บใน Storage bucket `work-evidence` แบบ private และข้อมูลถูกจำกัดด้วย RLS ให้บัญชีที่ Login เห็นเฉพาะข้อมูลของตัวเอง ไฟล์แนบในหน้ากรอกข้อมูลรวมได้ไม่เกิน 10 MB ต่อรายการ ส่วน bucket ตั้งเพดานไว้ 50 MB ต่อไฟล์ตาม migration
+ไฟล์เก็บใน Storage bucket `work-evidence` แบบ private และข้อมูลถูกจำกัดด้วย RLS ให้บัญชีที่ Login เห็นเฉพาะข้อมูลของตัวเอง ไฟล์แนบในหน้ากรอกข้อมูลรวมได้ไม่เกิน 100 MB ต่อรายการ และ bucket ตั้งเพดานไว้ 100 MB ต่อไฟล์ตาม migration

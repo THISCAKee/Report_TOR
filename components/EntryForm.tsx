@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { selectDroppedImages } from "@/lib/attachment-drop";
+import { canAddAttachments } from "@/lib/attachment-size";
 import { formatFileSize, getTodayIso, isImageAttachment, removeAttachment } from "@/lib/format";
 import type { Attachment, WorkLog, WorkLogDraft } from "@/lib/types";
 import { getWorkload } from "@/lib/workload-data";
 
-const MAX_BYTES = 10 * 1024 * 1024;
 type PendingFile = { attachmentId: string; file: File };
 
 type Props = {
@@ -65,8 +65,8 @@ export function EntryForm({ selectedDate, selectedWorkloadId, initialLog, onSave
   const handleFiles = async (files: FileList | File[] | null) => {
     if (!files?.length) return;
     const picked = Array.from(files);
-    if (attachments.reduce((sum, file) => sum + file.size, 0) + picked.reduce((sum, file) => sum + file.size, 0) > MAX_BYTES) {
-      setError("ไฟล์แนบรวมกันต้องมีขนาดไม่เกิน 10 MB");
+    if (!canAddAttachments(attachments.map((file) => file.size), picked.map((file) => file.size))) {
+      setError("ไฟล์แนบรวมกันต้องมีขนาดไม่เกิน 100 MB");
       return;
     }
     setReading(true);
@@ -165,7 +165,7 @@ export function EntryForm({ selectedDate, selectedWorkloadId, initialLog, onSave
       <div>
         <div className="mb-2 flex items-end justify-between gap-3">
           <label className="block text-sm font-semibold" htmlFor="attachments">ไฟล์งานแนบ</label>
-          <span className="text-xs text-[var(--muted)]">รวมไม่เกิน 10 MB</span>
+          <span className="text-xs text-[var(--muted)]">รวมไม่เกิน 100 MB</span>
         </div>
         <label
           htmlFor="attachments"
