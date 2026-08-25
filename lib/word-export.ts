@@ -1,5 +1,6 @@
 import { formatFileSize, formatThaiDate, isImageAttachment } from "@/lib/format";
-import type { WorkLog, WorkloadDefinition } from "@/lib/types";
+import { calculateCompressedImageDimensions } from "@/lib/image-compression";
+import type { Attachment, WorkLog, WorkloadDefinition } from "@/lib/types";
 import { getWorkCycle } from "@/lib/work-cycles";
 
 const MAX_WORD_IMAGE_PX = 212;
@@ -18,6 +19,13 @@ const readImageDimensions = (dataUrl: string): Promise<{ width: number; height: 
   image.src = dataUrl;
 });
 
+const loadImage = (source: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
+  const image = new Image();
+  image.onload = () => resolve(image);
+  image.onerror = () => reject(new Error("โหลดรูปภาพสำหรับส่งออกไม่สำเร็จ"));
+  image.src = source;
+});
+
 const toEmbeddedDataUrl = async (source: string) => {
   if (!source || source.startsWith("data:")) return source;
   try {
@@ -27,14 +35,39 @@ const toEmbeddedDataUrl = async (source: string) => {
   } catch { return source; }
 };
 
+const getDataUrlByteSize = (dataUrl: string) => {
+  const base64 = dataUrl.split(",")[1] ?? "";
+  return Math.ceil(base64.length * 3 / 4);
+};
+
+const compressWordImage = async (file: Attachment): Promise<Attachment> => {
+  const dataUrl = await toEmbeddedDataUrl(file.dataUrl);
+  const image = await loadImage(dataUrl);
+  const dimensions = calculateCompressedImageDimensions(file.width ?? image.naturalWidth, file.height ?? image.naturalHeight);
+  const canvas = document.createElement("canvas");
+  canvas.width = dimensions.width;
+  canvas.height = dimensions.height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("สร้างพื้นที่ย่อรูปภาพไม่สำเร็จ");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, dimensions.width, dimensions.height);
+  context.drawImage(image, 0, 0, dimensions.width, dimensions.height);
+  const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.65);
+  const compressedSize = getDataUrlByteSize(compressedDataUrl);
+  if (compressedSize >= file.size) return { ...file, dataUrl, width: dimensions.width, height: dimensions.height };
+  return { ...file, dataUrl: compressedDataUrl, type: "image/jpeg", size: compressedSize, width: dimensions.width, height: dimensions.height };
+};
+
 export async function ensureWordImageDimensions(logs: WorkLog[]): Promise<WorkLog[]> {
   return Promise.all(logs.map(async (log) => ({
     ...log,
     attachments: await Promise.all(log.attachments.map(async (file) => {
       if (!isImageAttachment(file.type)) return file;
-      const dataUrl = await toEmbeddedDataUrl(file.dataUrl);
-      if (file.width && file.height) return { ...file, dataUrl };
-      return { ...file, dataUrl, ...(await readImageDimensions(dataUrl)) };
+      try { return await compressWordImage(file); } catch {
+        const dataUrl = await toEmbeddedDataUrl(file.dataUrl);
+        if (file.width && file.height) return { ...file, dataUrl };
+        return { ...file, dataUrl, ...(await readImageDimensions(dataUrl)) };
+      }
     })),
   })));
 }

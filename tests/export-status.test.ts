@@ -5,6 +5,7 @@ describe("Word export status", () => {
   it("shows a clear message for each export phase", () => {
     expect(getWordExportStatusText("idle")).toBe("");
     expect(getWordExportStatusText("preparing")).toBe("กำลังรวมไฟล์แนบ…");
+    expect(getWordExportStatusText("compressing")).toBe("กำลังย่อรูปภาพ…");
     expect(getWordExportStatusText("building")).toBe("กำลังสร้างไฟล์ Word…");
   });
 });

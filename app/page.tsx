@@ -98,6 +98,7 @@ export default function Home() {
       setError("");
       setExportStatus("preparing");
       await new Promise((resolve) => window.setTimeout(resolve, 0));
+      setExportStatus("compressing");
       const preparedLogs = await ensureWordImageDimensions(workCycleLogs);
       setExportStatus("building");
       await new Promise((resolve) => window.setTimeout(resolve, 0));
