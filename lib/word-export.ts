@@ -1,5 +1,6 @@
 import { formatFileSize, formatThaiDate, isImageAttachment } from "@/lib/format";
 import type { WorkLog, WorkloadDefinition } from "@/lib/types";
+import { getWorkCycle } from "@/lib/work-cycles";
 
 const MAX_WORD_IMAGE_PX = 212;
 
@@ -55,7 +56,7 @@ const monthTitle = (date: string) => {
   return `${months[parsed.getMonth()]} พ.ศ. ${parsed.getFullYear() + 543}`;
 };
 
-export function buildWordDocument(date: string, logs: WorkLog[], workloads: WorkloadDefinition[]): string {
+const buildTabularWordDocument = (heading: string, logs: WorkLog[], workloads: WorkloadDefinition[]): string => {
   const sortedLogs = [...logs].sort((a, b) => `${a.date}-${a.createdAt}`.localeCompare(`${b.date}-${b.createdAt}`));
   const rows = sortedLogs.map((log) => {
     const workload = workloads.find((item) => item.id === log.workloadId);
@@ -69,7 +70,17 @@ export function buildWordDocument(date: string, logs: WorkLog[], workloads: Work
     return `<tr><td>${shortThaiDate(log.date)}</td><td>${activity}</td><td class="center">${escapeWordHtml(log.quantity ?? "1")}</td><td class="center">${escapeWordHtml(log.unit ?? "รายการ")}</td><td>${evidence || ""}</td><td>${escapeWordHtml(log.notes ?? "").replace(/\n/g, "<br/>")}</td></tr>`;
   }).join("");
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>บันทึกประจำวัน ${escapeWordHtml(monthTitle(date))}</title><style>@page{size:A4 landscape;margin:12mm 10mm}body{font-family:Anuphan,Arial,sans-serif;color:#17233f;margin:20px;line-height:1.45}h1{text-align:center;font-size:20px;margin:0 0 5px}p.meta{text-align:center;font-size:12px;margin:2px;color:#404b5f}.person{margin:18px 0 10px;font-size:12px;line-height:1.7}.report{border-collapse:collapse;width:100%;table-layout:fixed;font-size:11px}thead{display:table-header-group}tr{page-break-inside:avoid}th,td{border:1px solid #333;padding:6px 7px;vertical-align:top;word-wrap:break-word}th{background:#e7e7e7;text-align:center;font-weight:bold}th:nth-child(1){width:7%}th:nth-child(2){width:19%}th:nth-child(3){width:6%}th:nth-child(4){width:8%}th:nth-child(5){width:50%}th:nth-child(6){width:10%}.center{text-align:center}.evidence{text-align:center;margin-bottom:5px}.evidence img{display:block;width:5.6cm;max-width:5.6cm;max-height:5.6cm;height:auto;object-fit:contain;margin:0 auto 3px}.evidence small{color:#586274}</style></head><body><h1>บันทึกประจำวันการปฏิบัติงาน เดือน ${escapeWordHtml(monthTitle(date))}</h1><p class="meta">ผู้ปฏิบัติงาน นางสาวธารหทัย สุหญ้านาง &nbsp;&nbsp; ตำแหน่ง/ระดับ นักวิชาการศึกษาปฏิบัติการ</p><p class="meta">สังกัด กลุ่มงานบริการสารสนเทศและส่งเสริมการใช้บริการ</p><div class="person">จำนวนรายการบันทึกทั้งหมด: ${sortedLogs.length} รายการ</div><table class="report"><thead><tr><th>ว/ด/ป</th><th>งานที่ปฏิบัติ</th><th>จำนวน</th><th>หน่วยนับ<br/>(ชม./รายการ/<br/>ชื่อเรื่อง/ครั้ง)</th><th>หลักฐาน</th><th>ปัญหา/ แนวทางแก้ไข</th></tr></thead><tbody>${rows || "<tr><td colspan=\"6\">ไม่มีรายการบันทึก</td></tr>"}</tbody></table></body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${escapeWordHtml(heading)}</title><style>@page{size:A4 landscape;margin:12mm 10mm}body{font-family:Anuphan,Arial,sans-serif;color:#17233f;margin:20px;line-height:1.45}h1{text-align:center;font-size:20px;margin:0 0 5px}p.meta{text-align:center;font-size:12px;margin:2px;color:#404b5f}.person{margin:18px 0 10px;font-size:12px;line-height:1.7}.report{border-collapse:collapse;width:100%;table-layout:fixed;font-size:11px}thead{display:table-header-group}tr{page-break-inside:avoid}th,td{border:1px solid #333;padding:6px 7px;vertical-align:top;word-wrap:break-word}th{background:#e7e7e7;text-align:center;font-weight:bold}th:nth-child(1){width:7%}th:nth-child(2){width:19%}th:nth-child(3){width:6%}th:nth-child(4){width:8%}th:nth-child(5){width:50%}th:nth-child(6){width:10%}.center{text-align:center}.evidence{text-align:center;margin-bottom:5px}.evidence img{display:block;width:5.6cm;max-width:5.6cm;max-height:5.6cm;height:auto;object-fit:contain;margin:0 auto 3px}.evidence small{color:#586274}</style></head><body><h1>${escapeWordHtml(heading)}</h1><p class="meta">ผู้ปฏิบัติงาน นางสาวธารหทัย สุหญ้านาง &nbsp;&nbsp; ตำแหน่ง/ระดับ นักวิชาการศึกษาปฏิบัติการ</p><p class="meta">สังกัด กลุ่มงานบริการสารสนเทศและส่งเสริมการใช้บริการ</p><div class="person">จำนวนรายการบันทึกทั้งหมด: ${sortedLogs.length} รายการ</div><table class="report"><thead><tr><th>ว/ด/ป</th><th>งานที่ปฏิบัติ</th><th>จำนวน</th><th>หน่วยนับ<br/>(ชม./รายการ/<br/>ชื่อเรื่อง/ครั้ง)</th><th>หลักฐาน</th><th>ปัญหา/ แนวทางแก้ไข</th></tr></thead><tbody>${rows || "<tr><td colspan=\"6\">ไม่มีรายการบันทึก</td></tr>"}</tbody></table></body></html>`;
+};
+
+export function buildWordDocument(date: string, logs: WorkLog[], workloads: WorkloadDefinition[]): string {
+  return buildTabularWordDocument(`บันทึกประจำวันการปฏิบัติงาน เดือน ${monthTitle(date)}`, logs, workloads);
+}
+
+export function buildWorkCycleWordDocument(startDate: string, endDate: string, logs: WorkLog[], workloads: WorkloadDefinition[]): string {
+  const cycle = getWorkCycle(startDate);
+  const heading = `รายงานการปฏิบัติงาน ${cycle.label} (${shortThaiDate(startDate)} ถึง ${shortThaiDate(endDate)})`;
+  return buildTabularWordDocument(heading, logs, workloads);
 }
 
 export function buildMonthlyWorkloadWordDocument(date: string, logs: WorkLog[], workload: WorkloadDefinition): string {

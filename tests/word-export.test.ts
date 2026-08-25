@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMonthlyWorkloadWordDocument } from "@/lib/word-export";
+import { buildMonthlyWorkloadWordDocument, buildWorkCycleWordDocument } from "@/lib/word-export";
 import type { WorkLog, WorkloadDefinition } from "@/lib/types";
 
 const workloads: WorkloadDefinition[] = [
@@ -48,5 +48,23 @@ describe("monthly workload Word export", () => {
     expect(document).toContain("ไม่มีรูปภาพแนบ");
     expect(document).not.toContain("file.pdf");
     expect(document).not.toContain("<img ");
+  });
+});
+
+describe("work cycle Word export", () => {
+  it("includes all workloads and identifies the selected work cycle", () => {
+    const logs = [
+      { ...imageLog("1", "2026-09-10", "a", "september.png"), detail: "งานเดือนกันยายน" },
+      { ...imageLog("2", "2027-02-28", "b", "february.png"), detail: "งานเดือนกุมภาพันธ์" },
+    ];
+
+    const document = buildWorkCycleWordDocument("2026-09-01", "2027-02-28", logs, workloads);
+
+    expect(document).toContain("รายงานการปฏิบัติงาน รอบที่ 1");
+    expect(document).toContain("1 ก.ย. 69 ถึง 28 ก.พ. 70");
+    expect(document).toContain("A งานเอกสาร");
+    expect(document).toContain("B งานบริการ");
+    expect(document).toContain("งานเดือนกันยายน");
+    expect(document).toContain("งานเดือนกุมภาพันธ์");
   });
 });
