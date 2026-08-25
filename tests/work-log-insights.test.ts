@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildWorkloadStatisticsExcel } from "@/lib/excel-export";
-import { countWorkloadOccurrences, filterLogsByScope, summarizeMonthlyWorkloadOccurrences, summarizeWorkloadOccurrencesForMonth, summarizeLogsByDate } from "@/lib/work-log-insights";
+import { countWorkloadOccurrences, countWorkloadOccurrencesIncludingZero, filterLogsByScope, summarizeMonthlyWorkloadOccurrences, summarizeWorkloadOccurrencesForMonth, summarizeLogsByDate } from "@/lib/work-log-insights";
 import type { WorkLog, WorkloadDefinition } from "@/lib/types";
 
 const workloads: WorkloadDefinition[] = [
@@ -36,6 +36,16 @@ describe("work log insights", () => {
     expect(countWorkloadOccurrences([...logs, log("5", "2026-08-16", "unknown")], workloads)).toEqual([
       { workloadId: "a", code: "A", title: "งานเอกสาร", count: 2 },
       { workloadId: "b", code: "B", title: "งานบริการ", count: 2 },
+    ]);
+  });
+
+  it("includes every workload with zero when building a complete summary", () => {
+    const allWorkloads = [...workloads, { id: "c", category: "งานอื่น ๆ" as const, code: "C", title: "งานทั่วไป", weight: 0, targets: [] }];
+
+    expect(countWorkloadOccurrencesIncludingZero(logs, allWorkloads)).toEqual([
+      { workloadId: "a", code: "A", title: "งานเอกสาร", count: 2 },
+      { workloadId: "b", code: "B", title: "งานบริการ", count: 2 },
+      { workloadId: "c", code: "C", title: "งานทั่วไป", count: 0 },
     ]);
   });
 

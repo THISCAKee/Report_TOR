@@ -38,6 +38,16 @@ export function countWorkloadOccurrences(logs: WorkLog[], workloads: WorkloadDef
     .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code));
 }
 
+export function countWorkloadOccurrencesIncludingZero(logs: WorkLog[], workloads: WorkloadDefinition[]): WorkloadOccurrence[] {
+  const counts = new Map(countWorkloadOccurrences(logs, workloads).map((item) => [item.workloadId, item.count]));
+  return workloads.map((workload) => ({
+    workloadId: workload.id,
+    code: workload.code,
+    title: workload.title,
+    count: counts.get(workload.id) ?? 0,
+  }));
+}
+
 export function filterLogsByScope(logs: WorkLog[], selectedDate: string, scope: "day" | "month"): WorkLog[] {
   const month = selectedDate.slice(0, 7);
   return logs.filter((log) => scope === "day" ? log.date === selectedDate : log.date.startsWith(month));

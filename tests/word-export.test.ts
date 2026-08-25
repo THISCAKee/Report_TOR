@@ -5,6 +5,7 @@ import type { WorkLog, WorkloadDefinition } from "@/lib/types";
 const workloads: WorkloadDefinition[] = [
   { id: "a", category: "งานหลัก", code: "A", title: "งานเอกสาร", weight: 50, targets: [] },
   { id: "b", category: "งานรอง", code: "B", title: "งานบริการ", weight: 50, targets: [] },
+  { id: "c", category: "งานอื่น ๆ", code: "C", title: "งานทั่วไป", weight: 0, targets: [] },
 ];
 
 const imageLog = (id: string, date: string, workloadId: string, imageName: string): WorkLog => ({
@@ -66,5 +67,9 @@ describe("work cycle Word export", () => {
     expect(document).toContain("B งานบริการ");
     expect(document).toContain("งานเดือนกันยายน");
     expect(document).toContain("งานเดือนกุมภาพันธ์");
+    expect(document).toContain("สรุปจำนวนครั้งตามงาน");
+    expect(document).toContain("<td>C</td>");
+    expect(document).toContain("<td>งานทั่วไป</td>");
+    expect(document).toContain("0 ครั้ง");
   });
 });
