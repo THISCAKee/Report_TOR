@@ -19,6 +19,8 @@ import { buildWordDocument, buildWorkCycleWordDocument, ensureWordImageDimension
 import { createClient } from "@/lib/supabase/client";
 import { deleteWorkLog, fetchWorkLogs, saveWorkLog } from "@/lib/supabase/work-logs";
 
+const waitForExportUpdate = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState(getTodayIso);
   const [selectedMonth, setSelectedMonth] = useState(() => getTodayIso().slice(0, 7));
@@ -70,26 +72,53 @@ export default function Home() {
 
   const handleExportWord = async (scope: "day" | "month") => {
     const exportLogs = scope === "day" ? dailyLogs : monthlyLogs;
-    const preparedLogs = await ensureWordImageDimensions(exportLogs);
-    const documentHtml = buildWordDocument(scope === "month" ? `${selectedMonth}-01` : selectedDate, preparedLogs, WORKLOADS);
-    const blob = new Blob(["\ufeff", documentHtml], { type: "application/msword" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = scope === "day" ? `บันทึกประจำวัน-${selectedDate}.doc` : `บันทึกประจำเดือน-${selectedMonth}.doc`;
-    link.click();
-    URL.revokeObjectURL(url);
+    if (!exportLogs.length || exportStatus !== "idle") return;
+    try {
+      setError("");
+      setExportStatus("preparing");
+      await waitForExportUpdate();
+      setExportStatus("compressing");
+      const preparedLogs = await ensureWordImageDimensions(exportLogs);
+      setExportStatus("building");
+      await waitForExportUpdate();
+      const documentHtml = buildWordDocument(scope === "month" ? `${selectedMonth}-01` : selectedDate, preparedLogs, WORKLOADS);
+      const blob = new Blob(["\ufeff", documentHtml], { type: "application/msword" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = scope === "day" ? `บันทึกประจำวัน-${selectedDate}.doc` : `บันทึกประจำเดือน-${selectedMonth}.doc`;
+      setExportStatus("downloading");
+      await waitForExportUpdate();
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "ส่งออกไฟล์ไม่สำเร็จ");
+    } finally {
+      setExportStatus("idle");
+    }
   };
 
-  const handleExportStatistics = () => {
-    const workbook = buildWorkloadStatisticsExcel(selectedMonth, monthlyStats);
-    const blob = new Blob([workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `สถิติการทำงาน-${selectedMonth}.xls`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const handleExportStatistics = async () => {
+    if (!monthlyStats.length || exportStatus !== "idle") return;
+    try {
+      setError("");
+      setExportStatus("building");
+      await waitForExportUpdate();
+      const workbook = buildWorkloadStatisticsExcel(selectedMonth, monthlyStats);
+      const blob = new Blob([workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `สถิติการทำงาน-${selectedMonth}.xls`;
+      setExportStatus("downloading");
+      await waitForExportUpdate();
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "ส่งออกไฟล์ไม่สำเร็จ");
+    } finally {
+      setExportStatus("idle");
+    }
   };
 
   const handleExportWorkCycle = async () => {
@@ -101,13 +130,15 @@ export default function Home() {
       setExportStatus("compressing");
       const preparedLogs = await ensureWordImageDimensions(workCycleLogs);
       setExportStatus("building");
-      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      await waitForExportUpdate();
       const documentHtml = buildWorkCycleWordDocument(workCycle.startDate, workCycle.endDate, preparedLogs, WORKLOADS);
       const blob = new Blob(["\ufeff", documentHtml], { type: "application/msword" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       link.download = `บันทึกประจำรอบการทำงาน-${workCycle.number}-${workCycle.startDate}-${workCycle.endDate}.doc`;
+      setExportStatus("downloading");
+      await waitForExportUpdate();
       link.click();
       URL.revokeObjectURL(url);
     } catch (reason) {
@@ -128,13 +159,15 @@ export default function Home() {
       setExportStatus("compressing");
       const preparedLogs = await ensureWordImageDimensions(workloadLogs);
       setExportStatus("building");
-      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      await waitForExportUpdate();
       const documentHtml = buildWorkCycleWordDocument(workCycle.startDate, workCycle.endDate, preparedLogs, [workload]);
       const blob = new Blob(["\ufeff", documentHtml], { type: "application/msword" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       link.download = `รายงาน-${workload.code}-รอบการทำงาน-${workCycle.number}-${workCycle.startDate}-${workCycle.endDate}.doc`;
+      setExportStatus("downloading");
+      await waitForExportUpdate();
       link.click();
       URL.revokeObjectURL(url);
     } catch (reason) {
@@ -175,8 +208,9 @@ export default function Home() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_.85fr]"><DailyHistory summaries={dailySummaries} selectedDate={selectedDate} onSelectDate={(date) => { setSelectedDate(date); setSelectedMonth(date.slice(0, 7)); setEditingLog(undefined); }} /><WorkloadStats stats={workloadStats} /></div>
 
-      <section className="mt-6 rounded-3xl border border-[var(--line)] bg-white/45 p-5 sm:p-6"><div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#eef1f8] px-4 py-3"><div><span className="text-xs font-semibold text-[var(--muted)]">กำลังดูบันทึกของ</span><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p><p className="mt-1 text-xs text-[var(--muted)]">{workCycle.label}: {formatThaiDate(workCycle.startDate)} ถึง {formatThaiDate(workCycle.endDate)} ({workCycleLogs.length} รายการ)</p></div><div className="flex flex-wrap items-center gap-2"><div role="status" aria-live="polite" className="min-w-40 text-xs font-semibold text-[var(--blue)]">{getWordExportStatusText(exportStatus)}</div><button type="button" onClick={handleExportStatistics} disabled={!monthlyStats.length || exportStatus !== "idle"} className="focus-ring rounded-lg border border-[var(--ink)] px-3 py-2 text-xs font-semibold text-[var(--ink)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">ส่งออกสถิติ Excel</button><button type="button" onClick={() => void handleExportWord("month")} disabled={!monthlyLogs.length || exportStatus !== "idle"} className="focus-ring rounded-lg bg-[var(--ink)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#293a61] disabled:cursor-not-allowed disabled:opacity-40">ส่งออก Word รายเดือน</button><button type="button" onClick={() => void handleExportWorkCycle()} disabled={!workCycleLogs.length || exportStatus !== "idle"} className="focus-ring rounded-lg bg-[var(--blue)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#354a9a] disabled:cursor-not-allowed disabled:opacity-40">ส่งออก Word รอบการทำงาน</button></div></div><DailyLog date={selectedDate} logs={dailyLogs} onEdit={handleEdit} onDelete={handleDelete} /></section>
+      <section className="mt-6 rounded-3xl border border-[var(--line)] bg-white/45 p-5 sm:p-6"><div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#eef1f8] px-4 py-3"><div><span className="text-xs font-semibold text-[var(--muted)]">กำลังดูบันทึกของ</span><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p><p className="mt-1 text-xs text-[var(--muted)]">{workCycle.label}: {formatThaiDate(workCycle.startDate)} ถึง {formatThaiDate(workCycle.endDate)} ({workCycleLogs.length} รายการ)</p></div><div className="flex flex-wrap items-center gap-2"><div role="status" aria-live="polite" className="min-w-40 text-xs font-semibold text-[var(--blue)]">{getWordExportStatusText(exportStatus)}</div><button type="button" onClick={() => void handleExportStatistics()} disabled={!monthlyStats.length || exportStatus !== "idle"} className="focus-ring rounded-lg border border-[var(--ink)] px-3 py-2 text-xs font-semibold text-[var(--ink)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">ส่งออกสถิติ Excel</button><button type="button" onClick={() => void handleExportWord("month")} disabled={!monthlyLogs.length || exportStatus !== "idle"} className="focus-ring rounded-lg bg-[var(--ink)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#293a61] disabled:cursor-not-allowed disabled:opacity-40">ส่งออก Word รายเดือน</button><button type="button" onClick={() => void handleExportWorkCycle()} disabled={!workCycleLogs.length || exportStatus !== "idle"} className="focus-ring rounded-lg bg-[var(--blue)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#354a9a] disabled:cursor-not-allowed disabled:opacity-40">ส่งออก Word รอบการทำงาน</button></div></div><DailyLog date={selectedDate} logs={dailyLogs} onEdit={handleEdit} onDelete={handleDelete} /></section>
 
+      {exportStatus !== "idle" ? <div className="fixed inset-0 z-[60] grid place-items-center bg-[rgba(23,35,63,.46)] p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="export-progress-title"><div className="w-full max-w-sm rounded-3xl bg-white px-6 py-7 text-center shadow-2xl"><div className="mx-auto grid size-14 place-items-center rounded-full bg-[#eef1ff]"><span className="size-7 animate-spin rounded-full border-4 border-[#cdd6ff] border-t-[var(--blue)]" aria-hidden="true" /></div><h2 id="export-progress-title" className="mt-5 text-lg font-semibold text-[var(--ink)]">{getWordExportStatusText(exportStatus)}</h2><p className="mt-2 text-sm text-[var(--muted)]">โปรดรอสักครู่ ระบบกำลังเตรียมไฟล์ให้ดาวน์โหลด</p></div></div> : null}
       {isEntryOpen ? <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(23,35,63,.42)] p-0 backdrop-blur-[2px] sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIsEntryOpen(false); setEditingLog(undefined); } }}><div role="dialog" aria-modal="true" aria-labelledby="entry-dialog-title" className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-[var(--paper)] p-5 shadow-2xl sm:rounded-3xl sm:p-7"><div className="mb-4 flex justify-end"><button type="button" onClick={() => { setIsEntryOpen(false); setEditingLog(undefined); }} className="focus-ring rounded-xl px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[#e9e8e2]">ปิดหน้าต่าง</button></div><div id="entry-dialog-title" className="sr-only">กรอกข้อมูลภาระงาน</div><EntryForm selectedDate={selectedDate} selectedWorkloadId={selectedWorkloadId} initialLog={editingLog} onSave={handleSave} onCancel={() => { setIsEntryOpen(false); setEditingLog(undefined); }} /></div></div> : null}
     </div>
   </main>;

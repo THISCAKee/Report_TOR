@@ -7,5 +7,6 @@ describe("Word export status", () => {
     expect(getWordExportStatusText("preparing")).toBe("กำลังรวมไฟล์แนบ…");
     expect(getWordExportStatusText("compressing")).toBe("กำลังย่อรูปภาพ…");
     expect(getWordExportStatusText("building")).toBe("กำลังสร้างไฟล์ Word…");
+    expect(getWordExportStatusText("downloading")).toBe("กำลังดาวน์โหลด…");
   });
 });
