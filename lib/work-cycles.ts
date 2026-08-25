@@ -46,3 +46,7 @@ export function filterLogsByWorkCycle(logs: WorkLog[], selectedDate: string): Wo
   const cycle = getWorkCycle(selectedDate);
   return logs.filter((log) => log.date >= cycle.startDate && log.date <= cycle.endDate);
 }
+
+export function filterLogsByWorkCycleAndWorkload(logs: WorkLog[], selectedDate: string, workloadId: string): WorkLog[] {
+  return filterLogsByWorkCycle(logs, selectedDate).filter((log) => log.workloadId === workloadId);
+}

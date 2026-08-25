@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterLogsByWorkCycle, getWorkCycle } from "@/lib/work-cycles";
+import { filterLogsByWorkCycle, filterLogsByWorkCycleAndWorkload, getWorkCycle } from "@/lib/work-cycles";
 import type { WorkLog } from "@/lib/types";
 
 const log = (id: string, date: string): WorkLog => ({
@@ -56,5 +56,15 @@ describe("work cycles", () => {
     ];
 
     expect(filterLogsByWorkCycle(logs, "2026-09").map((item) => item.id)).toEqual(["start", "middle", "end"]);
+  });
+
+  it("filters a single workload across the selected work cycle", () => {
+    const logs = [
+      log("inside-a", "2026-09-10"),
+      { ...log("inside-b", "2026-10-10"), workloadId: "b" },
+      { ...log("outside-a", "2027-03-01"), workloadId: "a" },
+    ];
+
+    expect(filterLogsByWorkCycleAndWorkload(logs, "2026-09", "a").map((item) => item.id)).toEqual(["inside-a"]);
   });
 });

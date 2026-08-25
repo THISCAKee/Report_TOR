@@ -13,9 +13,9 @@ import { getStoredLogs } from "@/lib/storage";
 import type { WorkLog, WorkLogDraft } from "@/lib/types";
 import { buildWorkloadStatisticsExcel } from "@/lib/excel-export";
 import { countWorkloadOccurrences, summarizeLogsByDate, summarizeWorkloadOccurrencesForMonth } from "@/lib/work-log-insights";
-import { filterLogsByWorkCycle, getWorkCycle } from "@/lib/work-cycles";
+import { filterLogsByWorkCycle, filterLogsByWorkCycleAndWorkload, getWorkCycle } from "@/lib/work-cycles";
 import { WORKLOADS } from "@/lib/workload-data";
-import { buildMonthlyWorkloadWordDocument, buildWordDocument, buildWorkCycleWordDocument, ensureWordImageDimensions } from "@/lib/word-export";
+import { buildWordDocument, buildWorkCycleWordDocument, ensureWordImageDimensions } from "@/lib/word-export";
 import { createClient } from "@/lib/supabase/client";
 import { deleteWorkLog, fetchWorkLogs, saveWorkLog } from "@/lib/supabase/work-logs";
 
@@ -117,19 +117,31 @@ export default function Home() {
     }
   };
 
-  const handleExportMonthlyWorkload = async (workloadId: string) => {
+  const handleExportWorkCycleWorkload = async (workloadId: string) => {
     const workload = WORKLOADS.find((item) => item.id === workloadId);
-    const workloadLogs = monthlyLogs.filter((log) => log.workloadId === workloadId);
-    if (!workload || !workloadLogs.length) return;
-    const preparedLogs = await ensureWordImageDimensions(workloadLogs);
-    const documentHtml = buildMonthlyWorkloadWordDocument(`${selectedMonth}-01`, preparedLogs, workload);
-    const blob = new Blob(["\ufeff", documentHtml], { type: "application/msword" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `รายงาน-${workload.code}-${selectedMonth}.doc`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const workloadLogs = filterLogsByWorkCycleAndWorkload(logs, workCycle.startDate, workloadId);
+    if (!workload || !workloadLogs.length || exportStatus !== "idle") return;
+    try {
+      setError("");
+      setExportStatus("preparing");
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      setExportStatus("compressing");
+      const preparedLogs = await ensureWordImageDimensions(workloadLogs);
+      setExportStatus("building");
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      const documentHtml = buildWorkCycleWordDocument(workCycle.startDate, workCycle.endDate, preparedLogs, [workload]);
+      const blob = new Blob(["\ufeff", documentHtml], { type: "application/msword" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `รายงาน-${workload.code}-รอบการทำงาน-${workCycle.number}-${workCycle.startDate}-${workCycle.endDate}.doc`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "ส่งออกไฟล์ไม่สำเร็จ");
+    } finally {
+      setExportStatus("idle");
+    }
   };
 
   const handleLegacyImport = async () => {
@@ -159,7 +171,7 @@ export default function Home() {
       {error ? <div role="alert" className="mt-4 rounded-xl border border-[#f2caca] bg-[#fff1f1] px-4 py-3 text-sm text-[var(--red)]">{error}</div> : null}
       {legacyCount ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#ead7a1] bg-[#fff9e9] px-4 py-3 text-sm"><span>พบข้อมูลเดิมในเครื่อง {legacyCount} รายการ</span><button type="button" onClick={() => void handleLegacyImport()} className="rounded-lg bg-[var(--gold)] px-3 py-2 text-xs font-bold text-[#4a3511]">นำเข้าเข้าระบบ</button></div> : null}
 
-      <WorkloadList selectedId={editingLog?.workloadId ?? selectedWorkloadId} selectedMonth={selectedMonth} logs={logs} onSelect={handleSelectWorkload} onExportMonthly={(workloadId) => void handleExportMonthlyWorkload(workloadId)} />
+      <WorkloadList selectedId={editingLog?.workloadId ?? selectedWorkloadId} selectedCycle={workCycle} logs={logs} isExporting={exportStatus !== "idle"} onSelect={handleSelectWorkload} onExportWorkCycle={(workloadId) => void handleExportWorkCycleWorkload(workloadId)} />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_.85fr]"><DailyHistory summaries={dailySummaries} selectedDate={selectedDate} onSelectDate={(date) => { setSelectedDate(date); setSelectedMonth(date.slice(0, 7)); setEditingLog(undefined); }} /><WorkloadStats stats={workloadStats} /></div>
 
