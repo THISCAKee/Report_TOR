@@ -13,6 +13,11 @@ export type WorkloadDefinition = {
   targets: string[];
 };
 
+export type WorkloadEditDraft = Pick<WorkloadDefinition, "title" | "weight">;
+export type WorkloadCreateDraft = Pick<WorkloadDefinition, "category" | "code" | "title" | "weight">;
+
+export type EvaluationCycle = 1 | 2;
+
 export type Attachment = {
   id: string;
   name: string;
@@ -27,6 +32,7 @@ export type WorkLog = {
   id: string;
   date: string;
   workloadId: string;
+  evaluationCycle: EvaluationCycle;
   notes: string;
   detail: string;
   quantity?: string;
@@ -36,4 +42,4 @@ export type WorkLog = {
   updatedAt: string;
 };
 
-export type WorkLogDraft = Pick<WorkLog, "date" | "workloadId" | "detail" | "notes" | "attachments"> & { quantity: string; unit: string; files?: File[] };
+export type WorkLogDraft = Pick<WorkLog, "date" | "workloadId" | "evaluationCycle" | "detail" | "notes" | "attachments"> & { quantity: string; unit: string; files?: File[] };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildWorkloadStatisticsExcel } from "@/lib/excel-export";
-import { countWorkloadOccurrences, countWorkloadOccurrencesIncludingZero, filterLogsByScope, summarizeMonthlyWorkloadOccurrences, summarizeWorkloadOccurrencesForMonth, summarizeLogsByDate } from "@/lib/work-log-insights";
+import { countWorkloadOccurrences, countWorkloadOccurrencesIncludingZero, filterLogsByScope, getLogsForDate, summarizeMonthlyWorkloadOccurrences, summarizeWorkloadOccurrencesForMonth, summarizeLogsByDate } from "@/lib/work-log-insights";
 import type { WorkLog, WorkloadDefinition } from "@/lib/types";
 
 const workloads: WorkloadDefinition[] = [
@@ -12,6 +12,7 @@ const log = (id: string, date: string, workloadId: string, attachments = 0): Wor
   id,
   date,
   workloadId,
+  evaluationCycle: 2,
   detail: `รายละเอียด ${id}`,
   notes: "",
   quantity: "1",
@@ -52,6 +53,16 @@ describe("work log insights", () => {
   it("filters logs by exact day or selected month", () => {
     expect(filterLogsByScope(logs, "2026-08-15", "day").map((item) => item.id)).toEqual(["2", "3"]);
     expect(filterLogsByScope(logs, "2026-08-15", "month").map((item) => item.id)).toEqual(["1", "2", "3"]);
+  });
+
+  it("returns the selected day's logs newest first for the popup", () => {
+    const sameDay = [
+      { ...log("older", "2026-08-15", "a"), createdAt: "2026-08-15T08:00:00.000Z" },
+      { ...log("newer", "2026-08-15", "b"), createdAt: "2026-08-15T10:00:00.000Z" },
+      log("other-day", "2026-08-14", "a"),
+    ];
+
+    expect(getLogsForDate(sameDay, "2026-08-15").map((item) => item.id)).toEqual(["newer", "older"]);
   });
 
   it("summarizes workload occurrences for the selected month only", () => {

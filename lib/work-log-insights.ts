@@ -53,6 +53,10 @@ export function filterLogsByScope(logs: WorkLog[], selectedDate: string, scope: 
   return logs.filter((log) => scope === "day" ? log.date === selectedDate : log.date.startsWith(month));
 }
 
+export function getLogsForDate(logs: WorkLog[], date: string): WorkLog[] {
+  return logs.filter((log) => log.date === date).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
 export function summarizeMonthlyWorkloadOccurrences(logs: WorkLog[], selectedDate: string, workloads: WorkloadDefinition[]): WorkloadOccurrence[] {
   return summarizeWorkloadOccurrencesForMonth(logs, selectedDate.slice(0, 7), workloads);
 }

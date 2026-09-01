@@ -1,33 +1,40 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { DailyLog } from "@/components/DailyLog";
-import { DailyHistory } from "@/components/DailyHistory";
+import { DailyLogDialog } from "@/components/DailyLogDialog";
 import { EntryForm } from "@/components/EntryForm";
+import { Calendar } from "@/components/Calendar";
 import { SummaryStrip } from "@/components/SummaryStrip";
-import { WorkloadStats } from "@/components/WorkloadStats";
 import { WorkloadList } from "@/components/WorkloadList";
+import { WorkloadEditor } from "@/components/WorkloadEditor";
+import { WorkloadCreateDialog } from "@/components/WorkloadCreateDialog";
+import { WorkloadLogsDialog } from "@/components/WorkloadLogsDialog";
 import { getTodayIso, formatThaiDate } from "@/lib/format";
 import { getWordExportStatusText, type WordExportStatus } from "@/lib/export-status";
 import { getStoredLogs } from "@/lib/storage";
-import type { WorkLog, WorkLogDraft } from "@/lib/types";
-import { buildWorkloadStatisticsExcel } from "@/lib/excel-export";
-import { countWorkloadOccurrences, summarizeLogsByDate, summarizeWorkloadOccurrencesForMonth } from "@/lib/work-log-insights";
-import { filterLogsByWorkCycle, filterLogsByWorkCycleAndWorkload, getWorkCycle } from "@/lib/work-cycles";
-import { WORKLOADS } from "@/lib/workload-data";
-import { buildWordDocument, buildWorkCycleWordDocument, ensureWordImageDimensions } from "@/lib/word-export";
+import type { EvaluationCycle, WorkLog, WorkLogDraft, WorkloadCreateDraft, WorkloadDefinition, WorkloadEditDraft } from "@/lib/types";
+import { getLogsForDate } from "@/lib/work-log-insights";
+import { filterLogsByEvaluationCycle, filterLogsByWorkCycleAndWorkload, getWorkCycle, getWorkCycleForNumber } from "@/lib/work-cycles";
+import { buildWorkCycleWordDocument, ensureWordImageDimensions } from "@/lib/word-export";
 import { createClient } from "@/lib/supabase/client";
 import { deleteWorkLog, fetchWorkLogs, saveWorkLog } from "@/lib/supabase/work-logs";
+import { createWorkload, deleteWorkload, fetchWorkloads, updateWorkload } from "@/lib/supabase/workloads";
 
 const waitForExportUpdate = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0));
 
 export default function Home() {
   const [selectedDate, setSelectedDate] = useState(getTodayIso);
   const [selectedMonth, setSelectedMonth] = useState(() => getTodayIso().slice(0, 7));
+  const [selectedEvaluationCycle, setSelectedEvaluationCycle] = useState<EvaluationCycle>(() => getWorkCycle(getTodayIso()).number);
   const [logs, setLogs] = useState<WorkLog[]>([]);
+  const [workloads, setWorkloads] = useState<WorkloadDefinition[]>([]);
   const [editingLog, setEditingLog] = useState<WorkLog>();
+  const [editingWorkload, setEditingWorkload] = useState<WorkloadDefinition>();
+  const [isWorkloadCreateOpen, setIsWorkloadCreateOpen] = useState(false);
+  const [viewingWorkload, setViewingWorkload] = useState<WorkloadDefinition>();
   const [selectedWorkloadId, setSelectedWorkloadId] = useState("");
   const [isEntryOpen, setIsEntryOpen] = useState(false);
+  const [isDailyLogOpen, setIsDailyLogOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -35,122 +42,112 @@ export default function Home() {
   const [exportStatus, setExportStatus] = useState<WordExportStatus>("idle");
   const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => { void fetchWorkLogs(supabase).then(setLogs).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "โหลดข้อมูลไม่สำเร็จ")).finally(() => setLoading(false)); setLegacyCount(getStoredLogs().length); }, [supabase]);
+  useEffect(() => { void Promise.all([fetchWorkLogs(supabase), fetchWorkloads(supabase)]).then(([nextLogs, nextWorkloads]) => { setLogs(nextLogs); setWorkloads(nextWorkloads); }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "โหลดข้อมูลไม่สำเร็จ")).finally(() => setLoading(false)); setLegacyCount(getStoredLogs().length); }, [supabase]);
 
-  const dailyLogs = useMemo(() => logs.filter((log) => log.date === selectedDate), [logs, selectedDate]);
-  const monthlyLogs = useMemo(() => logs.filter((log) => log.date.startsWith(selectedMonth)), [logs, selectedMonth]);
-  const workCycle = useMemo(() => getWorkCycle(selectedMonth), [selectedMonth]);
-  const workCycleLogs = useMemo(() => filterLogsByWorkCycle(logs, selectedMonth), [logs, selectedMonth]);
-  const dailySummaries = useMemo(() => summarizeLogsByDate(logs), [logs]);
-  const workloadStats = useMemo(() => countWorkloadOccurrences(logs, WORKLOADS), [logs]);
-  const monthlyStats = useMemo(() => summarizeWorkloadOccurrencesForMonth(logs, selectedMonth, WORKLOADS), [logs, selectedMonth]);
+  const dailyLogs = useMemo(() => getLogsForDate(logs, selectedDate), [logs, selectedDate]);
+  const workCycle = useMemo(() => getWorkCycleForNumber(selectedMonth, selectedEvaluationCycle), [selectedMonth, selectedEvaluationCycle]);
   const fileCount = dailyLogs.reduce((count, log) => count + log.attachments.length, 0);
 
   const handleSave = async (draft: WorkLogDraft) => {
-    try { await saveWorkLog(supabase, draft, editingLog); setLogs(await fetchWorkLogs(supabase)); setSelectedDate(draft.date); setSelectedMonth(draft.date.slice(0, 7)); setEditingLog(undefined); setIsEntryOpen(false); setNotice(editingLog ? "แก้ไขรายการเรียบร้อยแล้ว" : "บันทึกภาระงานเรียบร้อยแล้ว"); window.setTimeout(() => setNotice(""), 3000); }
+    try { await saveWorkLog(supabase, draft, editingLog); setLogs(await fetchWorkLogs(supabase)); setSelectedDate(draft.date); setSelectedMonth(draft.date.slice(0, 7)); setSelectedEvaluationCycle(draft.evaluationCycle); setEditingLog(undefined); setIsEntryOpen(false); setNotice(editingLog ? "แก้ไขรายการเรียบร้อยแล้ว" : "บันทึกภาระงานเรียบร้อยแล้ว"); window.setTimeout(() => setNotice(""), 3000); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "บันทึกข้อมูลไม่สำเร็จ"); }
   };
 
-  const handleDelete = async (id: string) => {
-    const target = logs.find((log) => log.id === id);
-    if (!target || !window.confirm("ต้องการลบรายการภาระงานนี้ใช่หรือไม่?")) return;
-    try { await deleteWorkLog(supabase, target); setLogs(await fetchWorkLogs(supabase)); setNotice("ลบรายการเรียบร้อยแล้ว"); } catch (reason) { setError(reason instanceof Error ? reason.message : "ลบข้อมูลไม่สำเร็จ"); }
-    if (editingLog?.id === id) { setEditingLog(undefined); setIsEntryOpen(false); }
+  const handleDelete = async (ids: string[]) => {
+    const targets = logs.filter((log) => ids.includes(log.id));
+    if (!targets.length) return;
+    try {
+      await Promise.all(targets.map((target) => deleteWorkLog(supabase, target)));
+      setLogs(await fetchWorkLogs(supabase));
+      setNotice(`ลบบันทึก ${targets.length} รายการเรียบร้อยแล้ว`);
+      window.setTimeout(() => setNotice(""), 3000);
+      if (editingLog && ids.includes(editingLog.id)) { setEditingLog(undefined); setIsEntryOpen(false); }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "ลบข้อมูลไม่สำเร็จ");
+      throw reason;
+    }
+  };
+
+  const handleEditWorkload = (workload: WorkloadDefinition) => {
+    setError("");
+    setEditingWorkload(workload);
+  };
+
+  const handleCreateWorkload = async (draft: WorkloadCreateDraft) => {
+    try {
+      setError("");
+      const created = await createWorkload(supabase, draft);
+      setWorkloads(await fetchWorkloads(supabase));
+      setSelectedWorkloadId(created.id);
+      setIsWorkloadCreateOpen(false);
+      setNotice(`เพิ่ม TOR ${created.code} เรียบร้อยแล้ว`);
+      window.setTimeout(() => setNotice(""), 3000);
+    } catch (reason) {
+      throw reason instanceof Error ? reason : new Error("เพิ่มรายการ TOR ไม่สำเร็จ");
+    }
+  };
+
+  const handleUpdateWorkload = async (draft: WorkloadEditDraft) => {
+    if (!editingWorkload) return;
+    try {
+      await updateWorkload(supabase, editingWorkload.id, draft);
+      setWorkloads(await fetchWorkloads(supabase));
+      setEditingWorkload(undefined);
+      setNotice("แก้ไขหัวข้อ TOR เรียบร้อยแล้ว");
+      window.setTimeout(() => setNotice(""), 3000);
+    } catch (reason) {
+      throw reason instanceof Error ? reason : new Error("แก้ไขข้อมูล TOR ไม่สำเร็จ");
+    }
+  };
+
+  const handleDeleteWorkload = async (workload: WorkloadDefinition) => {
+    const relatedCount = logs.filter((log) => log.workloadId === workload.id).length;
+    const warning = relatedCount ? `TOR ${workload.code} มีบันทึกงาน ${relatedCount} รายการและไฟล์แนบที่เกี่ยวข้อง ข้อมูลทั้งหมดจะถูกลบถาวร ต้องการดำเนินการต่อหรือไม่?` : `ต้องการลบ TOR ${workload.code} ${workload.title} ออกจากฐานข้อมูลถาวรหรือไม่?`;
+    if (!window.confirm(warning)) return;
+    try {
+      setError("");
+      await deleteWorkload(supabase, workload.id);
+      const [nextLogs, nextWorkloads] = await Promise.all([fetchWorkLogs(supabase), fetchWorkloads(supabase)]);
+      setLogs(nextLogs);
+      setWorkloads(nextWorkloads);
+      if (selectedWorkloadId === workload.id) setSelectedWorkloadId("");
+      if (editingLog?.workloadId === workload.id) { setEditingLog(undefined); setIsEntryOpen(false); }
+      setNotice("ลบ TOR และข้อมูลที่เกี่ยวข้องถาวรเรียบร้อยแล้ว");
+      window.setTimeout(() => setNotice(""), 3000);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "ลบข้อมูล TOR ไม่สำเร็จ");
+    }
   };
 
   const handleSelectWorkload = (workloadId: string) => {
     setEditingLog(undefined);
     setSelectedWorkloadId(workloadId);
+  };
+
+  const handleAddEntry = () => {
+    if (!selectedDate || !selectedWorkloadId) return;
+    setEditingLog(undefined);
     setIsEntryOpen(true);
   };
 
   const handleEdit = (log: WorkLog) => {
+    setIsDailyLogOpen(false);
     setEditingLog(log);
     setSelectedWorkloadId(log.workloadId);
+    setSelectedEvaluationCycle(log.evaluationCycle);
     setIsEntryOpen(true);
   };
 
-  const handleExportWord = async (scope: "day" | "month") => {
-    const exportLogs = scope === "day" ? dailyLogs : monthlyLogs;
-    if (!exportLogs.length || exportStatus !== "idle") return;
-    try {
-      setError("");
-      setExportStatus("preparing");
-      await waitForExportUpdate();
-      setExportStatus("compressing");
-      const preparedLogs = await ensureWordImageDimensions(exportLogs);
-      setExportStatus("building");
-      await waitForExportUpdate();
-      const documentHtml = buildWordDocument(scope === "month" ? `${selectedMonth}-01` : selectedDate, preparedLogs, WORKLOADS);
-      const blob = new Blob(["\ufeff", documentHtml], { type: "application/msword" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = scope === "day" ? `บันทึกประจำวัน-${selectedDate}.doc` : `บันทึกประจำเดือน-${selectedMonth}.doc`;
-      setExportStatus("downloading");
-      await waitForExportUpdate();
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "ส่งออกไฟล์ไม่สำเร็จ");
-    } finally {
-      setExportStatus("idle");
-    }
-  };
-
-  const handleExportStatistics = async () => {
-    if (!monthlyStats.length || exportStatus !== "idle") return;
-    try {
-      setError("");
-      setExportStatus("building");
-      await waitForExportUpdate();
-      const workbook = buildWorkloadStatisticsExcel(selectedMonth, monthlyStats);
-      const blob = new Blob([workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `สถิติการทำงาน-${selectedMonth}.xls`;
-      setExportStatus("downloading");
-      await waitForExportUpdate();
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "ส่งออกไฟล์ไม่สำเร็จ");
-    } finally {
-      setExportStatus("idle");
-    }
-  };
-
-  const handleExportWorkCycle = async () => {
-    if (!workCycleLogs.length || exportStatus !== "idle") return;
-    try {
-      setError("");
-      setExportStatus("preparing");
-      await new Promise((resolve) => window.setTimeout(resolve, 0));
-      setExportStatus("compressing");
-      const preparedLogs = await ensureWordImageDimensions(workCycleLogs);
-      setExportStatus("building");
-      await waitForExportUpdate();
-      const documentHtml = buildWorkCycleWordDocument(workCycle.startDate, workCycle.endDate, preparedLogs, WORKLOADS);
-      const blob = new Blob(["\ufeff", documentHtml], { type: "application/msword" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `บันทึกประจำรอบการทำงาน-${workCycle.number}-${workCycle.startDate}-${workCycle.endDate}.doc`;
-      setExportStatus("downloading");
-      await waitForExportUpdate();
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "ส่งออกไฟล์ไม่สำเร็จ");
-    } finally {
-      setExportStatus("idle");
-    }
+  const handleSelectDate = (date: string) => {
+    setSelectedDate(date);
+    setSelectedMonth(date.slice(0, 7));
+    setEditingLog(undefined);
+    setIsDailyLogOpen(true);
   };
 
   const handleExportWorkCycleWorkload = async (workloadId: string) => {
-    const workload = WORKLOADS.find((item) => item.id === workloadId);
-    const workloadLogs = filterLogsByWorkCycleAndWorkload(logs, workCycle.startDate, workloadId);
+    const workload = workloads.find((item) => item.id === workloadId);
+    const workloadLogs = filterLogsByWorkCycleAndWorkload(filterLogsByEvaluationCycle(logs, selectedEvaluationCycle), workCycle.startDate, workloadId);
     if (!workload || !workloadLogs.length || exportStatus !== "idle") return;
     try {
       setError("");
@@ -183,7 +180,7 @@ export default function Home() {
     try {
       for (const log of legacyLogs) {
         const files = await Promise.all(log.attachments.filter(file => file.dataUrl.startsWith("data:")).map(async file => { const response = await fetch(file.dataUrl); return new File([await response.blob()], file.name, { type: file.type }); }));
-        await saveWorkLog(supabase, { date: log.date, workloadId: log.workloadId, detail: log.detail, notes: log.notes ?? "", quantity: log.quantity ?? "1", unit: log.unit ?? "รายการ", attachments: log.attachments, files });
+        await saveWorkLog(supabase, { date: log.date, workloadId: log.workloadId, evaluationCycle: log.evaluationCycle ?? getWorkCycle(log.date).number, detail: log.detail, notes: log.notes ?? "", quantity: log.quantity ?? "1", unit: log.unit ?? "รายการ", attachments: log.attachments, files });
       }
       setLogs(await fetchWorkLogs(supabase)); setLegacyCount(0); setNotice("นำเข้าข้อมูลเดิมเรียบร้อยแล้ว");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "นำเข้าข้อมูลไม่สำเร็จ"); }
@@ -197,21 +194,21 @@ export default function Home() {
         <div className="flex items-center gap-2 self-start rounded-full border border-[#dce0e7] bg-white/70 px-3 py-2 text-xs text-[var(--muted)] sm:self-auto"><span className="size-2 rounded-full bg-[var(--green)]" />ข้อมูลเก็บบนระบบ <button type="button" onClick={() => void supabase.auth.signOut().then(() => window.location.assign("/login"))} className="ml-2 font-semibold text-[var(--blue)]">ออกจากระบบ</button></div>
       </header>
 
-      <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#d8def1] bg-[#f4f6ff] px-4 py-3.5"><div><p className="text-xs font-semibold text-[var(--muted)]">ช่วงเวลาที่กำลังดู</p><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p></div><div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm font-semibold" htmlFor="view-date"><span className="text-xs font-normal text-[var(--muted)]">วันที่ดู</span><input id="view-date" type="date" value={selectedDate} onChange={(event) => { setSelectedDate(event.target.value); setSelectedMonth(event.target.value.slice(0, 7)); setEditingLog(undefined); }} className="focus-ring rounded-lg border border-[#cdd4e3] bg-white px-3 py-2 text-sm" /></label><label className="flex items-center gap-2 text-sm font-semibold" htmlFor="export-month"><span className="text-xs font-normal text-[var(--muted)]">เดือนสำหรับดาวน์โหลด</span><input id="export-month" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} className="focus-ring rounded-lg border border-[#cdd4e3] bg-white px-3 py-2 text-sm" /></label></div></section>
+      <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#d8def1] bg-[#f4f6ff] px-4 py-3.5"><div><p className="text-xs font-semibold text-[var(--muted)]">วันที่กำลังบันทึก</p><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p><p className="mt-1 text-xs text-[var(--muted)]">{selectedWorkloadId ? "เลือกรายการ TOR แล้ว" : "เลือกรายการ TOR จากฝั่งซ้าย"}</p></div><div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm font-semibold" htmlFor="selected-cycle"><span className="text-xs font-normal text-[var(--muted)]">รอบการประเมิน</span><select id="selected-cycle" value={selectedEvaluationCycle} onChange={(event) => setSelectedEvaluationCycle(Number(event.target.value) as EvaluationCycle)} className="focus-ring rounded-lg border border-[#cdd4e3] bg-white px-3 py-2 text-sm"><option value={1}>รอบที่ 1</option><option value={2}>รอบที่ 2</option></select></label><button type="button" onClick={handleAddEntry} disabled={!selectedWorkloadId || !selectedDate} className="focus-ring rounded-lg bg-[var(--blue)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(47,86,211,.18)] transition hover:bg-[#2548b5] disabled:cursor-not-allowed disabled:opacity-45">＋ เพิ่มรายการ</button></div></section>
 
       <div className="mt-6"><SummaryStrip date={selectedDate} logCount={dailyLogs.length} fileCount={fileCount} /></div>
       {notice ? <div role="status" className="mt-4 rounded-xl border border-[#b9dfd2] bg-[#effaf6] px-4 py-3 text-sm font-semibold text-[#246c59]">✓ {notice}</div> : null}
       {error ? <div role="alert" className="mt-4 rounded-xl border border-[#f2caca] bg-[#fff1f1] px-4 py-3 text-sm text-[var(--red)]">{error}</div> : null}
       {legacyCount ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#ead7a1] bg-[#fff9e9] px-4 py-3 text-sm"><span>พบข้อมูลเดิมในเครื่อง {legacyCount} รายการ</span><button type="button" onClick={() => void handleLegacyImport()} className="rounded-lg bg-[var(--gold)] px-3 py-2 text-xs font-bold text-[#4a3511]">นำเข้าเข้าระบบ</button></div> : null}
 
-      <WorkloadList selectedId={editingLog?.workloadId ?? selectedWorkloadId} selectedCycle={workCycle} logs={logs} isExporting={exportStatus !== "idle"} onSelect={handleSelectWorkload} onExportWorkCycle={(workloadId) => void handleExportWorkCycleWorkload(workloadId)} />
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_.85fr]"><DailyHistory summaries={dailySummaries} selectedDate={selectedDate} onSelectDate={(date) => { setSelectedDate(date); setSelectedMonth(date.slice(0, 7)); setEditingLog(undefined); }} /><WorkloadStats stats={workloadStats} /></div>
-
-      <section className="mt-6 rounded-3xl border border-[var(--line)] bg-white/45 p-5 sm:p-6"><div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#eef1f8] px-4 py-3"><div><span className="text-xs font-semibold text-[var(--muted)]">กำลังดูบันทึกของ</span><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p><p className="mt-1 text-xs text-[var(--muted)]">{workCycle.label}: {formatThaiDate(workCycle.startDate)} ถึง {formatThaiDate(workCycle.endDate)} ({workCycleLogs.length} รายการ)</p></div><div className="flex flex-wrap items-center gap-2"><div role="status" aria-live="polite" className="min-w-40 text-xs font-semibold text-[var(--blue)]">{getWordExportStatusText(exportStatus)}</div><button type="button" onClick={() => void handleExportStatistics()} disabled={!monthlyStats.length || exportStatus !== "idle"} className="focus-ring rounded-lg border border-[var(--ink)] px-3 py-2 text-xs font-semibold text-[var(--ink)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">ส่งออกสถิติ Excel</button><button type="button" onClick={() => void handleExportWord("month")} disabled={!monthlyLogs.length || exportStatus !== "idle"} className="focus-ring rounded-lg bg-[var(--ink)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#293a61] disabled:cursor-not-allowed disabled:opacity-40">ส่งออก Word รายเดือน</button><button type="button" onClick={() => void handleExportWorkCycle()} disabled={!workCycleLogs.length || exportStatus !== "idle"} className="focus-ring rounded-lg bg-[var(--blue)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#354a9a] disabled:cursor-not-allowed disabled:opacity-40">ส่งออก Word รอบการทำงาน</button></div></div><DailyLog date={selectedDate} logs={dailyLogs} onEdit={handleEdit} onDelete={handleDelete} /></section>
+      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(15rem,.55fr)_minmax(0,1.45fr)]"><WorkloadList className="mt-0" selectedId={editingLog?.workloadId ?? selectedWorkloadId} selectedCycle={workCycle} selectedEvaluationCycle={selectedEvaluationCycle} workloads={workloads} logs={logs} isExporting={exportStatus !== "idle"} onCreate={() => { setError(""); setIsWorkloadCreateOpen(true); }} onOpenLogs={(workload) => { setError(""); setViewingWorkload(workload); }} onSelect={handleSelectWorkload} onEdit={handleEditWorkload} onDelete={(workload) => void handleDeleteWorkload(workload)} onExportWorkCycle={(workloadId) => void handleExportWorkCycleWorkload(workloadId)} /><Calendar month={selectedMonth} selectedDate={selectedDate} logs={logs} onSelectDate={handleSelectDate} onChangeMonth={setSelectedMonth} /></div>
 
       {exportStatus !== "idle" ? <div className="fixed inset-0 z-[60] grid place-items-center bg-[rgba(23,35,63,.46)] p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="export-progress-title"><div className="w-full max-w-sm rounded-3xl bg-white px-6 py-7 text-center shadow-2xl"><div className="mx-auto grid size-14 place-items-center rounded-full bg-[#eef1ff]"><span className="size-7 animate-spin rounded-full border-4 border-[#cdd6ff] border-t-[var(--blue)]" aria-hidden="true" /></div><h2 id="export-progress-title" className="mt-5 text-lg font-semibold text-[var(--ink)]">{getWordExportStatusText(exportStatus)}</h2><p className="mt-2 text-sm text-[var(--muted)]">โปรดรอสักครู่ ระบบกำลังเตรียมไฟล์ให้ดาวน์โหลด</p></div></div> : null}
-      {isEntryOpen ? <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(23,35,63,.42)] p-0 backdrop-blur-[2px] sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIsEntryOpen(false); setEditingLog(undefined); } }}><div role="dialog" aria-modal="true" aria-labelledby="entry-dialog-title" className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-[var(--paper)] p-5 shadow-2xl sm:rounded-3xl sm:p-7"><div className="mb-4 flex justify-end"><button type="button" onClick={() => { setIsEntryOpen(false); setEditingLog(undefined); }} className="focus-ring rounded-xl px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[#e9e8e2]">ปิดหน้าต่าง</button></div><div id="entry-dialog-title" className="sr-only">กรอกข้อมูลภาระงาน</div><EntryForm selectedDate={selectedDate} selectedWorkloadId={selectedWorkloadId} initialLog={editingLog} onSave={handleSave} onCancel={() => { setIsEntryOpen(false); setEditingLog(undefined); }} /></div></div> : null}
+      {isDailyLogOpen ? <DailyLogDialog date={selectedDate} logs={dailyLogs} workloads={workloads} onEdit={handleEdit} onDelete={handleDelete} onClose={() => setIsDailyLogOpen(false)} /> : null}
+      {isEntryOpen ? <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(23,35,63,.42)] p-0 backdrop-blur-[2px] sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIsEntryOpen(false); setEditingLog(undefined); } }}><div role="dialog" aria-modal="true" aria-labelledby="entry-dialog-title" className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-[var(--paper)] p-5 shadow-2xl sm:rounded-3xl sm:p-7"><div className="mb-4 flex justify-end"><button type="button" onClick={() => { setIsEntryOpen(false); setEditingLog(undefined); }} className="focus-ring rounded-xl px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[#e9e8e2]">ปิดหน้าต่าง</button></div><div id="entry-dialog-title" className="sr-only">กรอกข้อมูลภาระงาน</div><EntryForm selectedDate={selectedDate} selectedWorkloadId={selectedWorkloadId} selectedEvaluationCycle={selectedEvaluationCycle} workloads={workloads} initialLog={editingLog} onSave={handleSave} onCancel={() => { setIsEntryOpen(false); setEditingLog(undefined); }} /></div></div> : null}
+      {editingWorkload ? <WorkloadEditor workload={editingWorkload} onSave={handleUpdateWorkload} onCancel={() => setEditingWorkload(undefined)} /> : null}
+      {isWorkloadCreateOpen ? <WorkloadCreateDialog onSave={handleCreateWorkload} onCancel={() => setIsWorkloadCreateOpen(false)} /> : null}
+      {viewingWorkload ? <WorkloadLogsDialog workload={viewingWorkload} logs={logs.filter((log) => log.workloadId === viewingWorkload.id)} onDelete={handleDelete} onClose={() => setViewingWorkload(undefined)} /> : null}
     </div>
   </main>;
 }

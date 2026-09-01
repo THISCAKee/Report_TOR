@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { filterLogsByWorkCycle, filterLogsByWorkCycleAndWorkload, getWorkCycle } from "@/lib/work-cycles";
+import { filterLogsByEvaluationCycle, filterLogsByWorkCycle, filterLogsByWorkCycleAndWorkload, getWorkCycle, getWorkCycleForNumber } from "@/lib/work-cycles";
 import type { WorkLog } from "@/lib/types";
 
 const log = (id: string, date: string): WorkLog => ({
   id,
   date,
   workloadId: "a",
+  evaluationCycle: date >= "2026-09-01" ? 1 : 2,
   detail: id,
   notes: "",
   quantity: "1",
@@ -66,5 +67,24 @@ describe("work cycles", () => {
     ];
 
     expect(filterLogsByWorkCycleAndWorkload(logs, "2026-09", "a").map((item) => item.id)).toEqual(["inside-a"]);
+  });
+
+  it("filters logs by the cycle selected when they were recorded", () => {
+    const logs = [
+      { ...log("cycle-1", "2026-09-10"), evaluationCycle: 1 as const },
+      { ...log("cycle-2", "2026-09-11"), evaluationCycle: 2 as const },
+      { ...log("cycle-1-later", "2027-01-10"), evaluationCycle: 1 as const },
+    ];
+
+    expect(filterLogsByEvaluationCycle(logs, 1).map((item) => item.id)).toEqual(["cycle-1", "cycle-1-later"]);
+  });
+
+  it("builds a report range from the selected month and manually selected cycle", () => {
+    expect(getWorkCycleForNumber("2026-11", 2)).toEqual({
+      number: 2,
+      startDate: "2026-03-01",
+      endDate: "2026-08-31",
+      label: "รอบที่ 2",
+    });
   });
 });

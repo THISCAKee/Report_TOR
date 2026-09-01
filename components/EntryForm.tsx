@@ -4,14 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { selectDroppedImages } from "@/lib/attachment-drop";
 import { canAddAttachments } from "@/lib/attachment-size";
 import { formatFileSize, getTodayIso, isImageAttachment, removeAttachment } from "@/lib/format";
-import type { Attachment, WorkLog, WorkLogDraft } from "@/lib/types";
-import { getWorkload } from "@/lib/workload-data";
+import { compressImageForUpload } from "@/lib/image-compression";
+import type { Attachment, EvaluationCycle, WorkLog, WorkLogDraft, WorkloadDefinition } from "@/lib/types";
 
 type PendingFile = { attachmentId: string; file: File };
 
 type Props = {
   selectedDate: string;
   selectedWorkloadId?: string;
+  selectedEvaluationCycle: EvaluationCycle;
+  workloads: WorkloadDefinition[];
   initialLog?: WorkLog;
   onSave: (draft: WorkLogDraft) => void;
   onCancel: () => void;
@@ -32,9 +34,10 @@ const fileToAttachment = (file: File): Promise<Attachment> => new Promise((resol
   reader.readAsDataURL(file);
 });
 
-export function EntryForm({ selectedDate, selectedWorkloadId, initialLog, onSave, onCancel }: Props) {
+export function EntryForm({ selectedDate, selectedWorkloadId, selectedEvaluationCycle, workloads, initialLog, onSave, onCancel }: Props) {
   const [date, setDate] = useState(initialLog?.date ?? selectedDate ?? getTodayIso());
   const [workloadId, setWorkloadId] = useState(initialLog?.workloadId ?? selectedWorkloadId ?? "");
+  const [evaluationCycle, setEvaluationCycle] = useState<EvaluationCycle>(initialLog?.evaluationCycle ?? selectedEvaluationCycle);
   const [detail, setDetail] = useState(initialLog?.detail ?? "");
   const [notes, setNotes] = useState(initialLog?.notes ?? "");
   const [quantity, setQuantity] = useState(initialLog?.quantity ?? "1");
@@ -46,11 +49,12 @@ export function EntryForm({ selectedDate, selectedWorkloadId, initialLog, onSave
   const [isDraggingImages, setIsDraggingImages] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragDepthRef = useRef(0);
-  const selectedWorkload = getWorkload(workloadId);
+  const selectedWorkload = workloads.find((workload) => workload.id === workloadId);
 
   useEffect(() => {
     setDate(initialLog?.date ?? selectedDate ?? getTodayIso());
     setWorkloadId(initialLog?.workloadId ?? selectedWorkloadId ?? "");
+    setEvaluationCycle(initialLog?.evaluationCycle ?? selectedEvaluationCycle);
     setDetail(initialLog?.detail ?? "");
     setNotes(initialLog?.notes ?? "");
     setQuantity(initialLog?.quantity ?? "1");
@@ -60,21 +64,22 @@ export function EntryForm({ selectedDate, selectedWorkloadId, initialLog, onSave
     setError("");
     setIsDraggingImages(false);
     dragDepthRef.current = 0;
-  }, [initialLog, selectedDate, selectedWorkloadId]);
+  }, [initialLog, selectedDate, selectedWorkloadId, selectedEvaluationCycle]);
 
   const handleFiles = async (files: FileList | File[] | null) => {
     if (!files?.length) return;
     const picked = Array.from(files);
-    if (!canAddAttachments(attachments.map((file) => file.size), picked.map((file) => file.size))) {
-      setError("ไฟล์แนบรวมกันต้องมีขนาดไม่เกิน 100 MB");
-      return;
-    }
     setReading(true);
     setError("");
     try {
-      const next = await Promise.all(picked.map(fileToAttachment));
+      const processedFiles = await Promise.all(picked.map(compressImageForUpload));
+      if (!canAddAttachments(attachments.map((file) => file.size), processedFiles.map((file) => file.size))) {
+        setError("ไฟล์แนบรวมกันต้องมีขนาดไม่เกิน 100 MB");
+        return;
+      }
+      const next = await Promise.all(processedFiles.map(fileToAttachment));
       setAttachments((current) => [...current, ...next]);
-      setPendingFiles((current) => [...current, ...next.map((attachment, index) => ({ attachmentId: attachment.id, file: picked[index] }))]);
+      setPendingFiles((current) => [...current, ...next.map((attachment, index) => ({ attachmentId: attachment.id, file: processedFiles[index] }))]);
     } catch (fileError) {
       setError(fileError instanceof Error ? fileError.message : "ไม่สามารถอ่านไฟล์ได้");
     } finally {
@@ -120,9 +125,9 @@ export function EntryForm({ selectedDate, selectedWorkloadId, initialLog, onSave
     if (!workloadId) return setError("กรุณาเลือกรายการภาระงาน");
     if (!detail.trim()) return setError("กรุณาเขียนรายละเอียดการทำงาน");
     setError("");
-    onSave({ date, workloadId, detail: detail.trim(), notes: notes.trim(), quantity: quantity || "1", unit, attachments, files: pendingFiles.map((pending) => pending.file) });
+    onSave({ date, workloadId, evaluationCycle, detail: detail.trim(), notes: notes.trim(), quantity: quantity || "1", unit, attachments, files: pendingFiles.map((pending) => pending.file) });
     if (initialLog) return;
-    setWorkloadId(""); setDetail(""); setNotes(""); setQuantity("1"); setUnit("รายการ"); setAttachments([]); setPendingFiles([]);
+    setWorkloadId(""); setEvaluationCycle(selectedEvaluationCycle); setDetail(""); setNotes(""); setQuantity("1"); setUnit("รายการ"); setAttachments([]); setPendingFiles([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -139,6 +144,12 @@ export function EntryForm({ selectedDate, selectedWorkloadId, initialLog, onSave
       <div>
         <label className="mb-2 block text-sm font-semibold" htmlFor="date">วันที่ทำงาน <span className="text-[var(--red)]">*</span></label>
         <input id="date" type="date" value={date} onChange={(event) => setDate(event.target.value)} className="focus-ring w-full rounded-xl border border-[var(--line)] bg-white px-4 py-3 shadow-sm transition hover:border-[#aeb6c8]" />
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm font-semibold" htmlFor="evaluation-cycle">รอบการประเมิน <span className="text-[var(--red)]">*</span></label>
+        <select id="evaluation-cycle" value={evaluationCycle} onChange={(event) => setEvaluationCycle(Number(event.target.value) as EvaluationCycle)} className="focus-ring w-full rounded-xl border border-[var(--line)] bg-white px-4 py-3 shadow-sm transition hover:border-[#aeb6c8]"><option value={1}>รอบที่ 1 (กันยายน – กุมภาพันธ์)</option><option value={2}>รอบที่ 2 (มีนาคม – สิงหาคม)</option></select>
+        <p className="mt-1.5 text-xs text-[var(--muted)]">เลือกรอบที่ต้องการใช้กับรายการนี้โดยตรง</p>
       </div>
 
       <div className="rounded-xl border border-[#d8def1] bg-[#f4f6ff] px-4 py-3.5">
@@ -177,7 +188,7 @@ export function EntryForm({ selectedDate, selectedWorkloadId, initialLog, onSave
         >
           <span className="text-xl text-[var(--blue)]">＋</span>
           <span className="mt-1 text-sm font-semibold text-[var(--ink)]">{isDraggingImages ? "วางรูปภาพที่นี่" : "คลิกเพื่อเลือกไฟล์ หรือลากรูปภาพมาวาง"}</span>
-          <span className="mt-0.5 text-xs text-[var(--muted)]">การลากวางรองรับรูปภาพหลายรูป · การเลือกไฟล์รองรับทุกนามสกุล</span>
+          <span className="mt-0.5 text-xs text-[var(--muted)]">รูปภาพจะถูกย่อและแปลงเป็น WebP อัตโนมัติ · ไฟล์อื่นคงเดิม</span>
           <input ref={fileInputRef} id="attachments" type="file" multiple onChange={(event) => void handleFiles(event.target.files)} className="sr-only" />
         </label>
         {reading ? <p className="mt-2 text-sm text-[var(--blue)]">กำลังเตรียมไฟล์แนบ…</p> : null}

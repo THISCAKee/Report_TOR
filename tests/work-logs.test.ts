@@ -80,6 +80,7 @@ describe("saveWorkLog", () => {
       id: "log-1",
       date: "2026-08-20",
       workloadId: "main-1-1",
+      evaluationCycle: 2,
       detail: "รายละเอียดเดิม",
       notes: "",
       quantity: "1",
@@ -91,6 +92,7 @@ describe("saveWorkLog", () => {
     const draft: WorkLogDraft = {
       date: existing.date,
       workloadId: existing.workloadId,
+      evaluationCycle: existing.evaluationCycle,
       detail: existing.detail,
       notes: existing.notes,
       quantity: existing.quantity ?? "1",

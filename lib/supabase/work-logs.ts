@@ -1,15 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Attachment, WorkLog, WorkLogDraft } from "@/lib/types";
+import type { Attachment, EvaluationCycle, WorkLog, WorkLogDraft } from "@/lib/types";
 
 type FileRow = { id: string; storage_path: string; name: string; size: number; mime_type: string; width: number | null; height: number | null };
-type LogRow = { id: string; work_date: string; workload_id: string; detail: string; notes: string; quantity: string; unit: string; created_at: string; updated_at: string; work_log_files: FileRow[] | null };
+type LogRow = { id: string; work_date: string; workload_id: string; evaluation_cycle: EvaluationCycle | null; detail: string; notes: string; quantity: string; unit: string; created_at: string; updated_at: string; work_log_files: FileRow[] | null };
 
 async function mapLog(client: SupabaseClient, row: LogRow): Promise<WorkLog> {
   const attachments = await Promise.all((row.work_log_files ?? []).map(async file => {
     const { data } = await client.storage.from("work-evidence").createSignedUrl(file.storage_path, 3600);
     return { id: file.id, name: file.name, size: file.size, type: file.mime_type, dataUrl: data?.signedUrl ?? "", width: file.width ?? undefined, height: file.height ?? undefined } satisfies Attachment;
   }));
-  return { id: row.id, date: row.work_date, workloadId: row.workload_id, detail: row.detail, notes: row.notes, quantity: row.quantity, unit: row.unit, attachments, createdAt: row.created_at, updatedAt: row.updated_at };
+  return { id: row.id, date: row.work_date, workloadId: row.workload_id, evaluationCycle: row.evaluation_cycle ?? 1, detail: row.detail, notes: row.notes, quantity: row.quantity, unit: row.unit, attachments, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 export async function fetchWorkLogs(client: SupabaseClient) {
@@ -21,7 +21,7 @@ export async function fetchWorkLogs(client: SupabaseClient) {
 export async function saveWorkLog(client: SupabaseClient, draft: WorkLogDraft, existing?: WorkLog) {
   const { data: { user } } = await client.auth.getUser();
   if (!user) throw new Error("กรุณาเข้าสู่ระบบก่อนบันทึกข้อมูล");
-  const payload = { user_id: user.id, work_date: draft.date, workload_id: draft.workloadId, detail: draft.detail, notes: draft.notes, quantity: draft.quantity || "1", unit: draft.unit || "รายการ", updated_at: new Date().toISOString() };
+  const payload = { user_id: user.id, work_date: draft.date, workload_id: draft.workloadId, evaluation_cycle: draft.evaluationCycle, detail: draft.detail, notes: draft.notes, quantity: draft.quantity || "1", unit: draft.unit || "รายการ", updated_at: new Date().toISOString() };
   const result = existing ? await client.from("work_logs").update(payload).eq("id", existing.id).select().single() : await client.from("work_logs").insert(payload).select().single();
   if (result.error || !result.data) throw result.error ?? new Error("บันทึกข้อมูลไม่สำเร็จ");
   const logId = result.data.id as string;

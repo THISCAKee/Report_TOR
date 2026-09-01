@@ -12,6 +12,7 @@ const imageLog = (id: string, date: string, workloadId: string, imageName: strin
   id,
   date,
   workloadId,
+  evaluationCycle: 1,
   detail: "รายละเอียด",
   notes: "",
   quantity: "1",

@@ -21,6 +21,7 @@ const sample: WorkLog = {
   id: "log-1",
   date: "2026-08-10",
   workloadId: "main-1-1",
+  evaluationCycle: 2,
   detail: "จัดเตรียมข้อเสนอโครงการ",
   notes: "ติดตามการอนุมัติโครงการ",
   attachments: [],

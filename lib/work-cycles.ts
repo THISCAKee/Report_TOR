@@ -1,4 +1,4 @@
-import type { WorkLog } from "@/lib/types";
+import type { EvaluationCycle, WorkLog } from "@/lib/types";
 
 export type WorkCycle = {
   number: 1 | 2;
@@ -42,9 +42,34 @@ export function getWorkCycle(date: string): WorkCycle {
   };
 }
 
+export function getWorkCycleForNumber(month: string, number: EvaluationCycle): WorkCycle {
+  const year = Number(month.slice(0, 4));
+  if (number === 1) {
+    const startYear = Number(month.slice(5, 7)) <= 2 ? year - 1 : year;
+    const endYear = startYear + 1;
+    return {
+      number,
+      startDate: formatDate(startYear, 9, 1),
+      endDate: formatDate(endYear, 2, isLeapYear(endYear) ? 29 : 28),
+      label: "รอบที่ 1",
+    };
+  }
+
+  return {
+    number,
+    startDate: formatDate(year, 3, 1),
+    endDate: formatDate(year, 8, 31),
+    label: "รอบที่ 2",
+  };
+}
+
 export function filterLogsByWorkCycle(logs: WorkLog[], selectedDate: string): WorkLog[] {
   const cycle = getWorkCycle(selectedDate);
   return logs.filter((log) => log.date >= cycle.startDate && log.date <= cycle.endDate);
+}
+
+export function filterLogsByEvaluationCycle(logs: WorkLog[], cycle: EvaluationCycle): WorkLog[] {
+  return logs.filter((log) => log.evaluationCycle === cycle);
 }
 
 export function filterLogsByWorkCycleAndWorkload(logs: WorkLog[], selectedDate: string, workloadId: string): WorkLog[] {
