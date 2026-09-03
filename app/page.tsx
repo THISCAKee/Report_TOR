@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AppFrame } from "@/components/AppFrame";
 import { DailyLogDialog } from "@/components/DailyLogDialog";
 import { EntryForm } from "@/components/EntryForm";
 import { Calendar } from "@/components/Calendar";
@@ -9,6 +10,7 @@ import { WorkloadList } from "@/components/WorkloadList";
 import { WorkloadEditor } from "@/components/WorkloadEditor";
 import { WorkloadCreateDialog } from "@/components/WorkloadCreateDialog";
 import { WorkloadLogsDialog } from "@/components/WorkloadLogsDialog";
+import { WorkspaceGrid } from "@/components/WorkspaceGrid";
 import { getTodayIso, formatThaiDate } from "@/lib/format";
 import { getWordExportStatusText, type WordExportStatus } from "@/lib/export-status";
 import { getStoredLogs } from "@/lib/storage";
@@ -34,7 +36,6 @@ export default function Home() {
   const [viewingWorkload, setViewingWorkload] = useState<WorkloadDefinition>();
   const [selectedWorkloadId, setSelectedWorkloadId] = useState("");
   const [isEntryOpen, setIsEntryOpen] = useState(false);
-  const [isDailyLogOpen, setIsDailyLogOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -121,17 +122,11 @@ export default function Home() {
 
   const handleSelectWorkload = (workloadId: string) => {
     setEditingLog(undefined);
+    setIsEntryOpen(false);
     setSelectedWorkloadId(workloadId);
   };
 
-  const handleAddEntry = () => {
-    if (!selectedDate || !selectedWorkloadId) return;
-    setEditingLog(undefined);
-    setIsEntryOpen(true);
-  };
-
   const handleEdit = (log: WorkLog) => {
-    setIsDailyLogOpen(false);
     setEditingLog(log);
     setSelectedWorkloadId(log.workloadId);
     setSelectedEvaluationCycle(log.evaluationCycle);
@@ -142,7 +137,6 @@ export default function Home() {
     setSelectedDate(date);
     setSelectedMonth(date.slice(0, 7));
     setEditingLog(undefined);
-    setIsDailyLogOpen(true);
   };
 
   const handleExportWorkCycleWorkload = async (workloadId: string) => {
@@ -188,27 +182,32 @@ export default function Home() {
 
   if (loading) return <main className="grid min-h-screen place-items-center text-sm text-[var(--muted)]">กำลังโหลดข้อมูล…</main>;
   return <main className="min-h-screen pb-16">
-    <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+    <AppFrame>
       <header className="flex flex-col gap-7 border-b border-[#d7d9de] pb-7 sm:flex-row sm:items-end sm:justify-between">
         <div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.2em] text-[var(--blue)]"><span className="h-px w-8 bg-[var(--gold)]" />TOR / DAILY LOG</div><h1 className="mt-3 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">สมุดบันทึกภาระงาน</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">บันทึกสิ่งที่ทำในแต่ละวันให้เป็นหลักฐาน ค้นหาและทบทวนได้ในที่เดียว</p></div>
         <div className="flex items-center gap-2 self-start rounded-full border border-[#dce0e7] bg-white/70 px-3 py-2 text-xs text-[var(--muted)] sm:self-auto"><span className="size-2 rounded-full bg-[var(--green)]" />ข้อมูลเก็บบนระบบ <button type="button" onClick={() => void supabase.auth.signOut().then(() => window.location.assign("/login"))} className="ml-2 font-semibold text-[var(--blue)]">ออกจากระบบ</button></div>
       </header>
 
-      <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#d8def1] bg-[#f4f6ff] px-4 py-3.5"><div><p className="text-xs font-semibold text-[var(--muted)]">วันที่กำลังบันทึก</p><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p><p className="mt-1 text-xs text-[var(--muted)]">{selectedWorkloadId ? "เลือกรายการ TOR แล้ว" : "เลือกรายการ TOR จากฝั่งซ้าย"}</p></div><div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2 text-sm font-semibold" htmlFor="selected-cycle"><span className="text-xs font-normal text-[var(--muted)]">รอบการประเมิน</span><select id="selected-cycle" value={selectedEvaluationCycle} onChange={(event) => setSelectedEvaluationCycle(Number(event.target.value) as EvaluationCycle)} className="focus-ring rounded-lg border border-[#cdd4e3] bg-white px-3 py-2 text-sm"><option value={1}>รอบที่ 1</option><option value={2}>รอบที่ 2</option></select></label><button type="button" onClick={handleAddEntry} disabled={!selectedWorkloadId || !selectedDate} className="focus-ring rounded-lg bg-[var(--blue)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(47,86,211,.18)] transition hover:bg-[#2548b5] disabled:cursor-not-allowed disabled:opacity-45">＋ เพิ่มรายการ</button></div></section>
+      <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#d8def1] bg-[#f4f6ff] px-4 py-3.5"><div><p className="text-xs font-semibold text-[var(--muted)]">วันที่กำลังบันทึก</p><p className="mt-0.5 font-semibold">{formatThaiDate(selectedDate)}</p><p className="mt-1 text-xs text-[var(--muted)]">{selectedWorkloadId ? "เลือกรายการ TOR แล้ว" : "เลือกรายการ TOR จากฝั่งซ้าย"}</p></div><label className="flex items-center gap-2 text-sm font-semibold" htmlFor="selected-cycle"><span className="text-xs font-normal text-[var(--muted)]">รอบการประเมิน</span><select id="selected-cycle" value={selectedEvaluationCycle} onChange={(event) => setSelectedEvaluationCycle(Number(event.target.value) as EvaluationCycle)} className="focus-ring rounded-lg border border-[#cdd4e3] bg-white px-3 py-2 text-sm"><option value={1}>รอบที่ 1</option><option value={2}>รอบที่ 2</option></select></label></section>
 
       <div className="mt-6"><SummaryStrip date={selectedDate} logCount={dailyLogs.length} fileCount={fileCount} /></div>
       {notice ? <div role="status" className="mt-4 rounded-xl border border-[#b9dfd2] bg-[#effaf6] px-4 py-3 text-sm font-semibold text-[#246c59]">✓ {notice}</div> : null}
       {error ? <div role="alert" className="mt-4 rounded-xl border border-[#f2caca] bg-[#fff1f1] px-4 py-3 text-sm text-[var(--red)]">{error}</div> : null}
       {legacyCount ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#ead7a1] bg-[#fff9e9] px-4 py-3 text-sm"><span>พบข้อมูลเดิมในเครื่อง {legacyCount} รายการ</span><button type="button" onClick={() => void handleLegacyImport()} className="rounded-lg bg-[var(--gold)] px-3 py-2 text-xs font-bold text-[#4a3511]">นำเข้าเข้าระบบ</button></div> : null}
 
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(15rem,.55fr)_minmax(0,1.45fr)]"><WorkloadList className="mt-0" selectedId={editingLog?.workloadId ?? selectedWorkloadId} selectedCycle={workCycle} selectedEvaluationCycle={selectedEvaluationCycle} workloads={workloads} logs={logs} isExporting={exportStatus !== "idle"} onCreate={() => { setError(""); setIsWorkloadCreateOpen(true); }} onOpenLogs={(workload) => { setError(""); setViewingWorkload(workload); }} onSelect={handleSelectWorkload} onEdit={handleEditWorkload} onDelete={(workload) => void handleDeleteWorkload(workload)} onExportWorkCycle={(workloadId) => void handleExportWorkCycleWorkload(workloadId)} /><Calendar month={selectedMonth} selectedDate={selectedDate} logs={logs} onSelectDate={handleSelectDate} onChangeMonth={setSelectedMonth} /></div>
+      <WorkspaceGrid
+        left={<WorkloadList className="mt-0 min-w-0" selectedId={editingLog?.workloadId ?? selectedWorkloadId} selectedCycle={workCycle} selectedEvaluationCycle={selectedEvaluationCycle} workloads={workloads} logs={logs} isExporting={exportStatus !== "idle"} onCreate={() => { setError(""); setIsWorkloadCreateOpen(true); }} onOpenLogs={(workload) => { setError(""); setViewingWorkload(workload); }} onSelect={handleSelectWorkload} onEdit={handleEditWorkload} onDelete={(workload) => void handleDeleteWorkload(workload)} onExportWorkCycle={(workloadId) => void handleExportWorkCycleWorkload(workloadId)}>
+          {selectedWorkloadId && !editingLog ? <EntryForm selectedDate={selectedDate} selectedWorkloadId={selectedWorkloadId} selectedEvaluationCycle={selectedEvaluationCycle} workloads={workloads} onSave={handleSave} onCancel={() => undefined} /> : null}
+        </WorkloadList>}
+        middle={<Calendar month={selectedMonth} selectedDate={selectedDate} logs={logs} onSelectDate={handleSelectDate} onChangeMonth={setSelectedMonth} />}
+        right={<DailyLogDialog inline date={selectedDate} logs={dailyLogs} workloads={workloads} onEdit={handleEdit} onDelete={handleDelete} onClose={() => undefined} />}
+      />
 
       {exportStatus !== "idle" ? <div className="fixed inset-0 z-[60] grid place-items-center bg-[rgba(23,35,63,.46)] p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="export-progress-title"><div className="w-full max-w-sm rounded-3xl bg-white px-6 py-7 text-center shadow-2xl"><div className="mx-auto grid size-14 place-items-center rounded-full bg-[#eef1ff]"><span className="size-7 animate-spin rounded-full border-4 border-[#cdd6ff] border-t-[var(--blue)]" aria-hidden="true" /></div><h2 id="export-progress-title" className="mt-5 text-lg font-semibold text-[var(--ink)]">{getWordExportStatusText(exportStatus)}</h2><p className="mt-2 text-sm text-[var(--muted)]">โปรดรอสักครู่ ระบบกำลังเตรียมไฟล์ให้ดาวน์โหลด</p></div></div> : null}
-      {isDailyLogOpen ? <DailyLogDialog date={selectedDate} logs={dailyLogs} workloads={workloads} onEdit={handleEdit} onDelete={handleDelete} onClose={() => setIsDailyLogOpen(false)} /> : null}
       {isEntryOpen ? <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(23,35,63,.42)] p-0 backdrop-blur-[2px] sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setIsEntryOpen(false); setEditingLog(undefined); } }}><div role="dialog" aria-modal="true" aria-labelledby="entry-dialog-title" className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-[var(--paper)] p-5 shadow-2xl sm:rounded-3xl sm:p-7"><div className="mb-4 flex justify-end"><button type="button" onClick={() => { setIsEntryOpen(false); setEditingLog(undefined); }} className="focus-ring rounded-xl px-3 py-2 text-sm font-semibold text-[var(--muted)] hover:bg-[#e9e8e2]">ปิดหน้าต่าง</button></div><div id="entry-dialog-title" className="sr-only">กรอกข้อมูลภาระงาน</div><EntryForm selectedDate={selectedDate} selectedWorkloadId={selectedWorkloadId} selectedEvaluationCycle={selectedEvaluationCycle} workloads={workloads} initialLog={editingLog} onSave={handleSave} onCancel={() => { setIsEntryOpen(false); setEditingLog(undefined); }} /></div></div> : null}
       {editingWorkload ? <WorkloadEditor workload={editingWorkload} onSave={handleUpdateWorkload} onCancel={() => setEditingWorkload(undefined)} /> : null}
       {isWorkloadCreateOpen ? <WorkloadCreateDialog onSave={handleCreateWorkload} onCancel={() => setIsWorkloadCreateOpen(false)} /> : null}
       {viewingWorkload ? <WorkloadLogsDialog workload={viewingWorkload} logs={logs.filter((log) => log.workloadId === viewingWorkload.id)} onDelete={handleDelete} onClose={() => setViewingWorkload(undefined)} /> : null}
-    </div>
+    </AppFrame>
   </main>;
 }

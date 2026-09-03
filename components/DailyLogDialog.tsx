@@ -7,6 +7,7 @@ import type { WorkLog, WorkloadDefinition } from "@/lib/types";
 import { selectAllLogIds, toggleSelectedLogId } from "@/lib/work-log-selection";
 
 type Props = {
+  inline?: boolean;
   date: string;
   logs: WorkLog[];
   workloads: WorkloadDefinition[];
@@ -15,7 +16,7 @@ type Props = {
   onClose: () => void;
 };
 
-export function DailyLogDialog({ date, logs, workloads, onEdit, onDelete, onClose }: Props) {
+export function DailyLogDialog({ inline = false, date, logs, workloads, onEdit, onDelete, onClose }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const allSelected = logs.length > 0 && selectedIds.size === logs.length;
@@ -40,16 +41,16 @@ export function DailyLogDialog({ date, logs, workloads, onEdit, onDelete, onClos
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-[rgba(23,35,63,.46)] p-0 backdrop-blur-[3px] sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div role="dialog" aria-modal="true" aria-labelledby="daily-log-dialog-title" className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-t-3xl bg-[var(--paper)] p-5 shadow-2xl sm:rounded-3xl sm:p-7">
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-[var(--line)] pb-5">
-          <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--gold)]">รายการที่บันทึกไว้</p><h2 id="daily-log-dialog-title" className="mt-1 text-2xl font-semibold tracking-tight">{formatThaiDate(date)}</h2><p className="mt-1 text-sm text-[var(--muted)]">ทั้งหมด {logs.length} รายการ</p></div>
-          <button type="button" onClick={onClose} className="focus-ring rounded-xl border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--ink)] transition hover:bg-[#eef1f8]">ปิดหน้าต่าง</button>
-        </div>
-        {logs.length ? <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-white px-4 py-3"><label className="flex cursor-pointer items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={allSelected} onChange={(event) => setSelectedIds(selectAllLogIds(logs.map((log) => log.id), event.target.checked))} className="focus-ring size-4 accent-[var(--red)]" />เลือกทั้งหมด</label><div className="flex items-center gap-3"><span className="text-sm text-[var(--muted)]">เลือกแล้ว {selectedIds.size} รายการ</span><button type="button" disabled={!selectedIds.size || deleting} onClick={() => void deleteSelected()} className="focus-ring rounded-lg border border-[#e6bcbc] bg-[#fff6f6] px-3.5 py-2 text-sm font-semibold text-[var(--red)] transition hover:bg-[#ffeaea] disabled:cursor-not-allowed disabled:opacity-45">{deleting ? "กำลังลบ…" : "ลบรายการที่เลือก"}</button></div></div> : null}
-        <DailyLog date={date} logs={logs} workloads={workloads} showHeader={false} selectedIds={selectedIds} onToggleSelection={(id) => setSelectedIds((current) => toggleSelectedLogId(current, id))} onEdit={onEdit} />
-      </div>
+  const headingId = inline ? "daily-log-panel-title" : "daily-log-dialog-title";
+  const content = <>
+    <div className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-[var(--line)] pb-5">
+      <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--gold)]">รายการที่บันทึกไว้</p><h2 id={headingId} className="mt-1 text-2xl font-semibold tracking-tight">{formatThaiDate(date)}</h2><p className="mt-1 text-sm text-[var(--muted)]">ทั้งหมด {logs.length} รายการ</p></div>
+      {inline ? null : <button type="button" onClick={onClose} className="focus-ring rounded-xl border border-[var(--line)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--ink)] transition hover:bg-[#eef1f8]">ปิดหน้าต่าง</button>}
     </div>
-  );
+    {logs.length ? <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-white px-4 py-3"><label className="flex cursor-pointer items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={allSelected} onChange={(event) => setSelectedIds(selectAllLogIds(logs.map((log) => log.id), event.target.checked))} className="focus-ring size-4 accent-[var(--red)]" />เลือกทั้งหมด</label><div className="flex items-center gap-3"><span className="text-sm text-[var(--muted)]">เลือกแล้ว {selectedIds.size} รายการ</span><button type="button" disabled={!selectedIds.size || deleting} onClick={() => void deleteSelected()} className="focus-ring rounded-lg border border-[#e6bcbc] bg-[#fff6f6] px-3.5 py-2 text-sm font-semibold text-[var(--red)] transition hover:bg-[#ffeaea] disabled:cursor-not-allowed disabled:opacity-45">{deleting ? "กำลังลบ…" : "ลบรายการที่เลือก"}</button></div></div> : null}
+    <DailyLog date={date} logs={logs} workloads={workloads} showHeader={false} selectedIds={selectedIds} onToggleSelection={(id) => setSelectedIds((current) => toggleSelectedLogId(current, id))} onEdit={onEdit} />
+  </>;
+
+  if (inline) return <section aria-labelledby={headingId} className="rounded-3xl border border-[var(--line)] bg-white p-5 shadow-[0_18px_50px_rgba(23,35,63,.06)] sm:p-6">{content}</section>;
+  return <div className="fixed inset-0 z-40 flex items-end justify-center bg-[rgba(23,35,63,.46)] p-0 backdrop-blur-[3px] sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><div role="dialog" aria-modal="true" aria-labelledby={headingId} className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-t-3xl bg-[var(--paper)] p-5 shadow-2xl sm:rounded-3xl sm:p-7">{content}</div></div>;
 }
