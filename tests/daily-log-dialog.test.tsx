@@ -8,11 +8,19 @@ const log: WorkLog = { id: "log-1", date: "2026-09-03", workloadId: "tor-1", eva
 
 describe("daily log display", () => {
   it("renders selected-date logs as an inline panel without a modal dialog", () => {
-    const html = renderToStaticMarkup(<DailyLogDialog inline date="2026-09-03" logs={[log]} workloads={[workload]} onEdit={() => undefined} onDelete={async () => undefined} onClose={() => undefined} />);
+    const html = renderToStaticMarkup(<DailyLogDialog inline date="2026-09-03" logs={[log]} workloads={[workload]} onEdit={() => undefined} onDuplicate={() => undefined} onDelete={async () => undefined} onClose={() => undefined} />);
 
     expect(html).toContain('aria-labelledby="daily-log-panel-title"');
     expect(html).toContain("ทดสอบการแสดงรายการ");
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain("backdrop-blur");
+  });
+
+  it("shows a target date picker for duplicate actions", () => {
+    const html = renderToStaticMarkup(<DailyLogDialog inline date="2026-09-03" logs={[log]} workloads={[workload]} onEdit={() => undefined} onDuplicate={() => undefined} onDelete={async () => undefined} onClose={() => undefined} />);
+
+    expect(html).toContain("ทำซ้ำรายการไปวันที่");
+    expect(html).toContain('aria-label="วันที่สำหรับทำซ้ำ"');
+    expect(html).toContain('value="2026-09-04"');
   });
 });

@@ -11,7 +11,7 @@ import { WorkloadEditor } from "@/components/WorkloadEditor";
 import { WorkloadCreateDialog } from "@/components/WorkloadCreateDialog";
 import { WorkloadLogsDialog } from "@/components/WorkloadLogsDialog";
 import { WorkspaceGrid } from "@/components/WorkspaceGrid";
-import { getTodayIso, formatThaiDate } from "@/lib/format";
+import { getNextIsoDate, getTodayIso, formatThaiDate } from "@/lib/format";
 import { getWordExportStatusText, type WordExportStatus } from "@/lib/export-status";
 import { getStoredLogs } from "@/lib/storage";
 import type { EvaluationCycle, WorkLog, WorkLogDraft, WorkloadCreateDraft, WorkloadDefinition, WorkloadEditDraft } from "@/lib/types";
@@ -31,6 +31,7 @@ export default function Home() {
   const [logs, setLogs] = useState<WorkLog[]>([]);
   const [workloads, setWorkloads] = useState<WorkloadDefinition[]>([]);
   const [editingLog, setEditingLog] = useState<WorkLog>();
+  const [duplicatingLog, setDuplicatingLog] = useState<WorkLog>();
   const [editingWorkload, setEditingWorkload] = useState<WorkloadDefinition>();
   const [isWorkloadCreateOpen, setIsWorkloadCreateOpen] = useState(false);
   const [viewingWorkload, setViewingWorkload] = useState<WorkloadDefinition>();
@@ -50,7 +51,7 @@ export default function Home() {
   const fileCount = dailyLogs.reduce((count, log) => count + log.attachments.length, 0);
 
   const handleSave = async (draft: WorkLogDraft) => {
-    try { await saveWorkLog(supabase, draft, editingLog); setLogs(await fetchWorkLogs(supabase)); setSelectedDate(draft.date); setSelectedMonth(draft.date.slice(0, 7)); setSelectedEvaluationCycle(draft.evaluationCycle); setEditingLog(undefined); setIsEntryOpen(false); setNotice(editingLog ? "แก้ไขรายการเรียบร้อยแล้ว" : "บันทึกภาระงานเรียบร้อยแล้ว"); window.setTimeout(() => setNotice(""), 3000); }
+    try { await saveWorkLog(supabase, draft, editingLog); setLogs(await fetchWorkLogs(supabase)); setSelectedDate(draft.date); setSelectedMonth(draft.date.slice(0, 7)); setSelectedEvaluationCycle(draft.evaluationCycle); setEditingLog(undefined); setDuplicatingLog(undefined); setIsEntryOpen(false); setNotice(editingLog ? "แก้ไขรายการเรียบร้อยแล้ว" : duplicatingLog ? "ทำซ้ำรายการเรียบร้อยแล้ว" : "บันทึกภาระงานเรียบร้อยแล้ว"); window.setTimeout(() => setNotice(""), 3000); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "บันทึกข้อมูลไม่สำเร็จ"); }
   };
 
@@ -63,6 +64,7 @@ export default function Home() {
       setNotice(`ลบบันทึก ${targets.length} รายการเรียบร้อยแล้ว`);
       window.setTimeout(() => setNotice(""), 3000);
       if (editingLog && ids.includes(editingLog.id)) { setEditingLog(undefined); setIsEntryOpen(false); }
+      if (duplicatingLog && ids.includes(duplicatingLog.id)) setDuplicatingLog(undefined);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "ลบข้อมูลไม่สำเร็จ");
       throw reason;
@@ -122,21 +124,35 @@ export default function Home() {
 
   const handleSelectWorkload = (workloadId: string) => {
     setEditingLog(undefined);
+    setDuplicatingLog(undefined);
     setIsEntryOpen(false);
     setSelectedWorkloadId(workloadId);
   };
 
   const handleEdit = (log: WorkLog) => {
+    setDuplicatingLog(undefined);
     setEditingLog(log);
     setSelectedWorkloadId(log.workloadId);
     setSelectedEvaluationCycle(log.evaluationCycle);
     setIsEntryOpen(true);
   };
 
+  const handleDuplicate = (log: WorkLog, targetDate: string) => {
+    const nextDate = targetDate || getNextIsoDate(log.date);
+    setEditingLog(undefined);
+    setIsEntryOpen(false);
+    setDuplicatingLog(log);
+    setSelectedWorkloadId(log.workloadId);
+    setSelectedDate(nextDate);
+    setSelectedMonth(nextDate.slice(0, 7));
+    setSelectedEvaluationCycle(log.evaluationCycle);
+  };
+
   const handleSelectDate = (date: string) => {
     setSelectedDate(date);
     setSelectedMonth(date.slice(0, 7));
     setEditingLog(undefined);
+    setDuplicatingLog(undefined);
   };
 
   const handleExportWorkCycleWorkload = async (workloadId: string) => {
@@ -197,10 +213,10 @@ export default function Home() {
 
       <WorkspaceGrid
         left={<WorkloadList className="mt-0 min-w-0" selectedId={editingLog?.workloadId ?? selectedWorkloadId} selectedCycle={workCycle} selectedEvaluationCycle={selectedEvaluationCycle} workloads={workloads} logs={logs} isExporting={exportStatus !== "idle"} onCreate={() => { setError(""); setIsWorkloadCreateOpen(true); }} onOpenLogs={(workload) => { setError(""); setViewingWorkload(workload); }} onSelect={handleSelectWorkload} onEdit={handleEditWorkload} onDelete={(workload) => void handleDeleteWorkload(workload)} onExportWorkCycle={(workloadId) => void handleExportWorkCycleWorkload(workloadId)}>
-          {selectedWorkloadId && !editingLog ? <EntryForm selectedDate={selectedDate} selectedWorkloadId={selectedWorkloadId} selectedEvaluationCycle={selectedEvaluationCycle} workloads={workloads} onSave={handleSave} onCancel={() => undefined} /> : null}
+          {selectedWorkloadId && !editingLog ? <EntryForm selectedDate={selectedDate} selectedWorkloadId={selectedWorkloadId} selectedEvaluationCycle={selectedEvaluationCycle} workloads={workloads} duplicateLog={duplicatingLog} duplicateDate={duplicatingLog ? selectedDate : undefined} onSave={handleSave} onCancel={() => setDuplicatingLog(undefined)} /> : null}
         </WorkloadList>}
         middle={<Calendar month={selectedMonth} selectedDate={selectedDate} logs={logs} onSelectDate={handleSelectDate} onChangeMonth={setSelectedMonth} />}
-        right={<DailyLogDialog inline date={selectedDate} logs={dailyLogs} workloads={workloads} onEdit={handleEdit} onDelete={handleDelete} onClose={() => undefined} />}
+        right={<DailyLogDialog inline date={selectedDate} logs={dailyLogs} workloads={workloads} onEdit={handleEdit} onDuplicate={handleDuplicate} onDelete={handleDelete} onClose={() => undefined} />}
       />
 
       {exportStatus !== "idle" ? <div className="fixed inset-0 z-[60] grid place-items-center bg-[rgba(23,35,63,.46)] p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="export-progress-title"><div className="w-full max-w-sm rounded-3xl bg-white px-6 py-7 text-center shadow-2xl"><div className="mx-auto grid size-14 place-items-center rounded-full bg-[#eef1ff]"><span className="size-7 animate-spin rounded-full border-4 border-[#cdd6ff] border-t-[var(--blue)]" aria-hidden="true" /></div><h2 id="export-progress-title" className="mt-5 text-lg font-semibold text-[var(--ink)]">{getWordExportStatusText(exportStatus)}</h2><p className="mt-2 text-sm text-[var(--muted)]">โปรดรอสักครู่ ระบบกำลังเตรียมไฟล์ให้ดาวน์โหลด</p></div></div> : null}

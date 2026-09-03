@@ -12,6 +12,11 @@ export function getTodayIso(): string {
   return new Date(now.getTime() - offset).toISOString().slice(0, 10);
 }
 
+export function getNextIsoDate(dateString: string): string {
+  const [year, month, day] = dateString.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+}
+
 export function formatThaiDate(dateString: string): string {
   return new Intl.DateTimeFormat("th-TH", {
     day: "numeric",

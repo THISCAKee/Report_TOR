@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { selectDroppedImages } from "@/lib/attachment-drop";
 import { canAddAttachments } from "@/lib/attachment-size";
-import { formatFileSize, getTodayIso, isImageAttachment, removeAttachment } from "@/lib/format";
+import { formatFileSize, getNextIsoDate, getTodayIso, isImageAttachment, removeAttachment } from "@/lib/format";
 import { compressImageForUpload } from "@/lib/image-compression";
 import type { Attachment, EvaluationCycle, WorkLog, WorkLogDraft, WorkloadDefinition } from "@/lib/types";
 
@@ -15,6 +15,8 @@ type Props = {
   selectedEvaluationCycle: EvaluationCycle;
   workloads: WorkloadDefinition[];
   initialLog?: WorkLog;
+  duplicateLog?: WorkLog;
+  duplicateDate?: string;
   onSave: (draft: WorkLogDraft) => void;
   onCancel: () => void;
 };
@@ -34,14 +36,14 @@ const fileToAttachment = (file: File): Promise<Attachment> => new Promise((resol
   reader.readAsDataURL(file);
 });
 
-export function EntryForm({ selectedDate, selectedWorkloadId, selectedEvaluationCycle, workloads, initialLog, onSave, onCancel }: Props) {
-  const [date, setDate] = useState(initialLog?.date ?? selectedDate ?? getTodayIso());
-  const [workloadId, setWorkloadId] = useState(initialLog?.workloadId ?? selectedWorkloadId ?? "");
-  const [evaluationCycle, setEvaluationCycle] = useState<EvaluationCycle>(initialLog?.evaluationCycle ?? selectedEvaluationCycle);
-  const [detail, setDetail] = useState(initialLog?.detail ?? "");
-  const [notes, setNotes] = useState(initialLog?.notes ?? "");
-  const [quantity, setQuantity] = useState(initialLog?.quantity ?? "1");
-  const [unit, setUnit] = useState(initialLog?.unit ?? "รายการ");
+export function EntryForm({ selectedDate, selectedWorkloadId, selectedEvaluationCycle, workloads, initialLog, duplicateLog, duplicateDate, onSave, onCancel }: Props) {
+  const [date, setDate] = useState(initialLog?.date ?? (duplicateLog ? duplicateDate ?? getNextIsoDate(duplicateLog.date) : selectedDate ?? getTodayIso()));
+  const [workloadId, setWorkloadId] = useState(initialLog?.workloadId ?? duplicateLog?.workloadId ?? selectedWorkloadId ?? "");
+  const [evaluationCycle, setEvaluationCycle] = useState<EvaluationCycle>(initialLog?.evaluationCycle ?? duplicateLog?.evaluationCycle ?? selectedEvaluationCycle);
+  const [detail, setDetail] = useState(initialLog?.detail ?? duplicateLog?.detail ?? "");
+  const [notes, setNotes] = useState(initialLog?.notes ?? duplicateLog?.notes ?? "");
+  const [quantity, setQuantity] = useState(initialLog?.quantity ?? duplicateLog?.quantity ?? "1");
+  const [unit, setUnit] = useState(initialLog?.unit ?? duplicateLog?.unit ?? "รายการ");
   const [attachments, setAttachments] = useState<Attachment[]>(initialLog?.attachments ?? []);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [error, setError] = useState("");
@@ -52,19 +54,19 @@ export function EntryForm({ selectedDate, selectedWorkloadId, selectedEvaluation
   const selectedWorkload = workloads.find((workload) => workload.id === workloadId);
 
   useEffect(() => {
-    setDate(initialLog?.date ?? selectedDate ?? getTodayIso());
-    setWorkloadId(initialLog?.workloadId ?? selectedWorkloadId ?? "");
-    setEvaluationCycle(initialLog?.evaluationCycle ?? selectedEvaluationCycle);
-    setDetail(initialLog?.detail ?? "");
-    setNotes(initialLog?.notes ?? "");
-    setQuantity(initialLog?.quantity ?? "1");
-    setUnit(initialLog?.unit ?? "รายการ");
+    setDate(initialLog?.date ?? (duplicateLog ? duplicateDate ?? getNextIsoDate(duplicateLog.date) : selectedDate ?? getTodayIso()));
+    setWorkloadId(initialLog?.workloadId ?? duplicateLog?.workloadId ?? selectedWorkloadId ?? "");
+    setEvaluationCycle(initialLog?.evaluationCycle ?? duplicateLog?.evaluationCycle ?? selectedEvaluationCycle);
+    setDetail(initialLog?.detail ?? duplicateLog?.detail ?? "");
+    setNotes(initialLog?.notes ?? duplicateLog?.notes ?? "");
+    setQuantity(initialLog?.quantity ?? duplicateLog?.quantity ?? "1");
+    setUnit(initialLog?.unit ?? duplicateLog?.unit ?? "รายการ");
     setAttachments(initialLog?.attachments ?? []);
     setPendingFiles([]);
     setError("");
     setIsDraggingImages(false);
     dragDepthRef.current = 0;
-  }, [initialLog, selectedDate, selectedWorkloadId, selectedEvaluationCycle]);
+  }, [initialLog, duplicateLog, duplicateDate, selectedDate, selectedWorkloadId, selectedEvaluationCycle]);
 
   const handleFiles = async (files: FileList | File[] | null) => {
     if (!files?.length) return;
@@ -127,7 +129,7 @@ export function EntryForm({ selectedDate, selectedWorkloadId, selectedEvaluation
     setError("");
     onSave({ date, workloadId, evaluationCycle, detail: detail.trim(), notes: notes.trim(), quantity: quantity || "1", unit, attachments, files: pendingFiles.map((pending) => pending.file) });
     if (initialLog) return;
-    setWorkloadId(""); setEvaluationCycle(selectedEvaluationCycle); setDetail(""); setNotes(""); setQuantity("1"); setUnit("รายการ"); setAttachments([]); setPendingFiles([]);
+    setWorkloadId(selectedWorkloadId ?? ""); setEvaluationCycle(selectedEvaluationCycle); setDetail(""); setNotes(""); setQuantity("1"); setUnit("รายการ"); setAttachments([]); setPendingFiles([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -135,7 +137,7 @@ export function EntryForm({ selectedDate, selectedWorkloadId, selectedEvaluation
     <form onSubmit={submit} className="space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--blue)]">{initialLog ? "แก้ไขรายการ" : "บันทึกใหม่"}</p>
+          <p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--blue)]">{initialLog ? "แก้ไขรายการ" : duplicateLog ? "ทำซ้ำรายการ" : "บันทึกใหม่"}</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight">รายละเอียดภาระงาน</h2>
         </div>
         <span className="rounded-full bg-[#edf1ff] px-3 py-1 text-xs font-semibold text-[var(--blue)]">บันทึกบนระบบ</span>
@@ -197,8 +199,8 @@ export function EntryForm({ selectedDate, selectedWorkloadId, selectedEvaluation
 
       {error ? <p role="alert" className="rounded-xl bg-[#fff1f1] px-3.5 py-3 text-sm leading-6 text-[var(--red)]">{error}</p> : null}
       <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
-        {initialLog ? <button type="button" onClick={onCancel} className="focus-ring rounded-xl px-4 py-3 text-sm font-semibold text-[var(--muted)] hover:bg-[#f0f0ed]">ยกเลิก</button> : null}
-        <button type="submit" disabled={reading} className="focus-ring rounded-xl bg-[var(--blue)] px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(47,86,211,.22)] transition hover:-translate-y-0.5 hover:bg-[#2548b5] disabled:cursor-not-allowed disabled:opacity-60">{initialLog ? "บันทึกการแก้ไข" : "บันทึกภาระงาน"}</button>
+        {initialLog || duplicateLog ? <button type="button" onClick={onCancel} className="focus-ring rounded-xl px-4 py-3 text-sm font-semibold text-[var(--muted)] hover:bg-[#f0f0ed]">ยกเลิก</button> : null}
+        <button type="submit" disabled={reading} className="focus-ring rounded-xl bg-[var(--blue)] px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(47,86,211,.22)] transition hover:-translate-y-0.5 hover:bg-[#2548b5] disabled:cursor-not-allowed disabled:opacity-60">{initialLog ? "บันทึกการแก้ไข" : duplicateLog ? "บันทึกงานซ้ำ" : "บันทึกภาระงาน"}</button>
       </div>
     </form>
   );
