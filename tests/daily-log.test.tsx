@@ -13,4 +13,11 @@ describe("daily log actions", () => {
     expect(html).toContain("ทำซ้ำ");
     expect(html).toContain('aria-label="ทำซ้ำรายการ ขึ้นเวรที่ DLP"');
   });
+
+  it("keeps the empty state without the decorative logo", () => {
+    const html = renderToStaticMarkup(<DailyLog date={log.date} logs={[]} workloads={[workload]} selectedIds={new Set()} onToggleSelection={() => undefined} onEdit={() => undefined} onDuplicate={() => undefined} />);
+
+    expect(html).toContain("ยังไม่มีบันทึกของวันนี้");
+    expect(html).not.toContain("✦");
+  });
 });

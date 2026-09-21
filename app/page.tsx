@@ -15,9 +15,9 @@ import { getNextIsoDate, getTodayIso, formatThaiDate } from "@/lib/format";
 import { getWordExportStatusText, type WordExportStatus } from "@/lib/export-status";
 import { getStoredLogs } from "@/lib/storage";
 import type { EvaluationCycle, WorkLog, WorkLogDraft, WorkloadCreateDraft, WorkloadDefinition, WorkloadEditDraft } from "@/lib/types";
-import { getLogsForDate } from "@/lib/work-log-insights";
+import { filterLogsByScope, getLogsForDate } from "@/lib/work-log-insights";
 import { filterLogsByEvaluationCycle, filterLogsByWorkCycleAndWorkload, getWorkCycle, getWorkCycleForNumber } from "@/lib/work-cycles";
-import { buildWorkCycleWordDocument, ensureWordImageDimensions } from "@/lib/word-export";
+import { buildWordDocument, buildWorkCycleWordDocument, ensureWordImageDimensions } from "@/lib/word-export";
 import { createClient } from "@/lib/supabase/client";
 import { deleteWorkLog, fetchWorkLogs, saveWorkLog } from "@/lib/supabase/work-logs";
 import { createWorkload, deleteWorkload, fetchWorkloads, updateWorkload } from "@/lib/supabase/workloads";
@@ -47,6 +47,7 @@ export default function Home() {
   useEffect(() => { void Promise.all([fetchWorkLogs(supabase), fetchWorkloads(supabase)]).then(([nextLogs, nextWorkloads]) => { setLogs(nextLogs); setWorkloads(nextWorkloads); }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "โหลดข้อมูลไม่สำเร็จ")).finally(() => setLoading(false)); setLegacyCount(getStoredLogs().length); }, [supabase]);
 
   const dailyLogs = useMemo(() => getLogsForDate(logs, selectedDate), [logs, selectedDate]);
+  const monthlyLogs = useMemo(() => filterLogsByScope(logs, `${selectedMonth}-01`, "month"), [logs, selectedMonth]);
   const workCycle = useMemo(() => getWorkCycleForNumber(selectedMonth, selectedEvaluationCycle), [selectedMonth, selectedEvaluationCycle]);
   const fileCount = dailyLogs.reduce((count, log) => count + log.attachments.length, 0);
 
@@ -184,6 +185,33 @@ export default function Home() {
     }
   };
 
+  const handleExportMonth = async () => {
+    if (!monthlyLogs.length || exportStatus !== "idle") return;
+    try {
+      setError("");
+      setExportStatus("preparing");
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      setExportStatus("compressing");
+      const preparedLogs = await ensureWordImageDimensions(monthlyLogs);
+      setExportStatus("building");
+      await waitForExportUpdate();
+      const documentHtml = buildWordDocument(`${selectedMonth}-01`, preparedLogs, workloads);
+      const blob = new Blob(["\ufeff", documentHtml], { type: "application/msword" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `บันทึกประจำเดือน-${selectedMonth}.doc`;
+      setExportStatus("downloading");
+      await waitForExportUpdate();
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "ส่งออกไฟล์ไม่สำเร็จ");
+    } finally {
+      setExportStatus("idle");
+    }
+  };
+
   const handleLegacyImport = async () => {
     const legacyLogs = getStoredLogs();
     if (!legacyLogs.length || !window.confirm(`พบข้อมูลเดิม ${legacyLogs.length} รายการ ต้องการนำเข้าเข้าระบบหรือไม่?`)) return;
@@ -215,7 +243,7 @@ export default function Home() {
         left={<WorkloadList className="mt-0 min-w-0" selectedId={editingLog?.workloadId ?? selectedWorkloadId} selectedCycle={workCycle} selectedEvaluationCycle={selectedEvaluationCycle} workloads={workloads} logs={logs} isExporting={exportStatus !== "idle"} onCreate={() => { setError(""); setIsWorkloadCreateOpen(true); }} onOpenLogs={(workload) => { setError(""); setViewingWorkload(workload); }} onSelect={handleSelectWorkload} onEdit={handleEditWorkload} onDelete={(workload) => void handleDeleteWorkload(workload)} onExportWorkCycle={(workloadId) => void handleExportWorkCycleWorkload(workloadId)}>
           {selectedWorkloadId && !editingLog ? <EntryForm selectedDate={selectedDate} selectedWorkloadId={selectedWorkloadId} selectedEvaluationCycle={selectedEvaluationCycle} workloads={workloads} duplicateLog={duplicatingLog} duplicateDate={duplicatingLog ? selectedDate : undefined} onSave={handleSave} onCancel={() => setDuplicatingLog(undefined)} /> : null}
         </WorkloadList>}
-        middle={<Calendar month={selectedMonth} selectedDate={selectedDate} logs={logs} onSelectDate={handleSelectDate} onChangeMonth={setSelectedMonth} />}
+        middle={<Calendar month={selectedMonth} selectedDate={selectedDate} logs={logs} monthlyLogCount={monthlyLogs.length} isExporting={exportStatus !== "idle"} onSelectDate={handleSelectDate} onChangeMonth={setSelectedMonth} onExportMonth={() => void handleExportMonth()} />}
         right={<DailyLogDialog inline date={selectedDate} logs={dailyLogs} workloads={workloads} onEdit={handleEdit} onDuplicate={handleDuplicate} onDelete={handleDelete} onClose={() => undefined} />}
       />
 
