@@ -3,7 +3,7 @@
 ## 1. สร้าง Supabase
 
 1. สร้างโปรเจกต์ใหม่ที่ Supabase (แผน Free ใช้ได้กับระบบผู้ใช้คนเดียว)
-2. ไปที่ **SQL Editor** แล้วรันไฟล์ [`supabase/migrations/0001_daily_workload.sql`](../supabase/migrations/0001_daily_workload.sql)
+2. ไปที่ **SQL Editor** แล้วรันไฟล์ [`supabase/setup-new-project.sql`](../supabase/setup-new-project.sql) หนึ่งครั้งสำหรับโปรเจกต์ใหม่ (รวม migrations 0001–0005)
 3. ไปที่ **Authentication > Users > Add user** สร้างผู้ใช้ โดยใช้อีเมลรูปแบบ `ชื่อผู้ใช้@gmail.com` เช่น `earthcake@gmail.com` และกำหนดรหัสผ่าน
 4. ไปที่ **Project Settings > API** คัดลอก Project URL และ Publishable key (ถ้าโปรเจกต์ใช้ชื่อเดิม ให้ใช้ anon key)
 
